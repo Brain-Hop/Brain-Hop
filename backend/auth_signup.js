@@ -23,13 +23,7 @@ module.exports = async function signup(req) {
     const { supabase } = require('./supabase');
 
     // Call signUp without user metadata (we don't accept name)
-    let result;
-    try {
-      result = await supabase.auth.signUp({ email, password });
-    } catch (v2err) {
-      // Fallback to v1-style: signUp({ email, password })
-      result = await supabase.auth.signUp({ email, password });
-    }
+    const result = await supabase.auth.signUp({ email, password });
 
     const { data, error } = result || {};
     if (error) {
