@@ -6,7 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Plus, Send, CheckSquare, Tag, X, Scissors } from "lucide-react";
+import {
+  MessageSquare,
+  Plus,
+  Send,
+  CheckSquare,
+  Tag,
+  X,
+  Scissors,
+  Image as ImageIcon,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { MODELS, DEFAULT_MODEL_ID, loadSelectedModelId, findModel } from "@/data/models";
@@ -19,6 +29,7 @@ interface Message {
   role: Role;
   content: string;
   model?: string;
+  image?: string | null; // data URL for rendering (user/preview only)
 }
 
 interface TextSnippet {
@@ -33,12 +44,19 @@ interface Chat {
   messages: Message[];
 }
 
-const LS_KEY = "chat_state_v3";
+type PendingImage = {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string; // base64 (for preview only)
+};
+
+const LS_KEY = "chat_state_v4_single_image";
 
 // ====== CONSTANT USER ID (for now) ======
-const USER_ID = "100";
+const USER_ID = "1000";
 
-// Safe JSON parse
+// ---- helpers ----
 function safeParse<T>(v: string | null, fallback: T): T {
   try {
     return v ? (JSON.parse(v) as T) : fallback;
@@ -47,7 +65,6 @@ function safeParse<T>(v: string | null, fallback: T): T {
   }
 }
 
-// Tiny ID helper
 function newId() {
   return (typeof crypto !== "undefined" && "randomUUID" in crypto && crypto.randomUUID()) || Date.now().toString();
 }
@@ -58,33 +75,33 @@ export default function Chat() {
   const { toast } = useToast();
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-  // ===== Model selection (seed from models page or default) =====
+  // ===== model selection =====
   const initialModelId = useMemo(() => loadSelectedModelId() ?? DEFAULT_MODEL_ID, []);
   const [selectedModel, setSelectedModel] = useState<string>(initialModelId);
 
-  // ===== App state (persisted) =====
+  // ===== app state =====
   const initialChatId = useMemo(() => newId(), []);
-  const [chats, setChats] = useState<Chat[]>([
-    { id: initialChatId, title: "New Conversation", messages: [] },
-  ]);
+  const [chats, setChats] = useState<Chat[]>([{ id: initialChatId, title: "New Conversation", messages: [] }]);
   const [activeChatId, setActiveChatId] = useState<string>(initialChatId);
   const [input, setInput] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedChats, setSelectedChats] = useState<string[]>([]);
   const [selectedSnippets, setSelectedSnippets] = useState<TextSnippet[]>([]);
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null); // SINGLE image
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const hydratedRef = useRef(false);
 
   const activeChat = chats.find((c) => c.id === activeChatId);
 
-  // ===== Redirect if not logged in =====
+  // ===== auth guard =====
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate("/login", { replace: true });
     }
   }, [isAuthenticated, loading, navigate]);
 
-  // ===== Hydrate from localStorage =====
+  // ===== hydrate from localStorage =====
   useEffect(() => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
@@ -93,65 +110,137 @@ export default function Chat() {
       chats: Chat[];
       activeChatId: string;
       selectedModel: string;
-    }>(window.localStorage.getItem(LS_KEY), {
-      chats: [{ id: initialChatId, title: "New Conversation", messages: [] }],
-      activeChatId: initialChatId,
-      selectedModel: initialModelId,
-    });
+      pendingImage: PendingImage | null;
+    }>(
+      typeof window !== "undefined" ? window.localStorage.getItem(LS_KEY) : null,
+      {
+        chats: [{ id: initialChatId, title: "New Conversation", messages: [] }],
+        activeChatId: initialChatId,
+        selectedModel: initialModelId,
+        pendingImage: null,
+      }
+    );
 
     setChats(cached.chats?.length ? cached.chats : [{ id: initialChatId, title: "New Conversation", messages: [] }]);
     setActiveChatId(cached.activeChatId || initialChatId);
     setSelectedModel(cached.selectedModel || initialModelId);
+    setPendingImage(cached.pendingImage ?? null);
   }, [initialChatId, initialModelId]);
 
-  // ===== Persist to localStorage (fast render future) =====
+  // ===== persist to localStorage =====
   useEffect(() => {
     const snapshot = JSON.stringify({
       chats,
       activeChatId,
       selectedModel,
+      pendingImage,
     });
     window.localStorage.setItem(LS_KEY, snapshot);
-  }, [chats, activeChatId, selectedModel]);
+  }, [chats, activeChatId, selectedModel, pendingImage]);
 
-  // ===== Keep local selected model synced if user changes it elsewhere =====
+  // keep model synced if changed on models page
   useEffect(() => {
     const id = loadSelectedModelId();
     if (id && id !== selectedModel) setSelectedModel(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ===== API helper that attaches bearer (if present) =====
+  // ===== api helpers =====
   const apiFetch = (path: string, init: RequestInit = {}) =>
     fetch(`${apiBaseUrl}${path}`, {
       ...init,
       headers: {
-        "Content-Type": "application/json",
         ...(init.headers || {}),
+        // do not force JSON content-type here; caller sets it if needed
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
 
-  // ===== Send message -> Node -> Flask RAG -> append assistant =====
-  const handleSend = async () => {
-    if (!input.trim() || !activeChat) return;
+  // ===== image handling (single) =====
+  const onPickImage = () => fileInputRef.current?.click();
 
-    // Build question with selected snippets
+  const fileToDataUrl = (file: File): Promise<PendingImage> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () =>
+        resolve({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl: reader.result as string,
+        });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const pending = await fileToDataUrl(f);
+      setPendingImage(pending); // replace any existing image
+    } catch (err) {
+      console.error("Image load error:", err);
+      toast({ title: "Image error", description: "Unable to load the selected image.", variant: "destructive" });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const clearPendingImage = () => setPendingImage(null);
+
+  // upload pending image to /api/rag/image -> returns image_name
+  const uploadPendingImage = async (userId: string, chatId: string): Promise<string | null> => {
+    if (!pendingImage) return null;
+
+    // convert dataUrl back to Blob
+    const toBlob = async (dataUrl: string) => {
+      const res = await fetch(dataUrl);
+      return await res.blob();
+    };
+
+    const blob = await toBlob(pendingImage.dataUrl);
+    const file = new File([blob], pendingImage.name || "image.png", { type: blob.type || "image/png" });
+
+    const form = new FormData();
+    form.append("user_id", userId);
+    form.append("chat_id", chatId);
+    form.append("image", file);
+
+    const resp = await apiFetch(`/api/rag/image`, {
+      method: "POST",
+      body: form, // browser sets multipart boundary
+    });
+
+    const data = await resp.json().catch(() => ({} as any));
+    if (!resp.ok) {
+      throw new Error(data?.error || "Image upload failed");
+    }
+    return data.image_name as string;
+  };
+
+  // ===== send message =====
+  const handleSend = async () => {
+    if (!activeChat) return;
+    if (!input.trim() && !pendingImage) return;
+
+    // build question with context
     const contextPrefix =
       selectedSnippets.length > 0
         ? `Context snippets:\n${selectedSnippets.map((s) => `- ${s.content}`).join("\n")}\n\n`
         : "";
     const finalQuestion = `${contextPrefix}${input.trim()}`;
 
-    // Optimistic user bubble
+    // optimistic user message (includes preview image)
     const userMsg: Message = {
       id: newId(),
       role: "user",
       content: input,
       model: selectedModel,
+      image: pendingImage?.dataUrl ?? null,
     };
 
-    // === Set title immediately from FIRST user message ===
+    // set title from FIRST user message
     setChats((prev) =>
       prev.map((c) =>
         c.id === activeChatId
@@ -159,33 +248,40 @@ export default function Chat() {
               ...c,
               title:
                 c.title === "New Conversation" && c.messages.length === 0
-                  ? userMsg.content.trim().slice(0, 48) || "New Conversation"
+                  ? (userMsg.content || "[Image]").trim().slice(0, 48) || "New Conversation"
                   : c.title,
               messages: [...c.messages, userMsg],
             }
           : c
       )
     );
+
     setInput("");
 
     try {
+      // 1) upload image (if any) to Supabase via Node -> receive image_name
+      let image_name: string | null = null;
+      if (pendingImage) {
+        image_name = await uploadPendingImage(USER_ID, activeChatId);
+        // only clear the local preview after a successful upload
+        setPendingImage(null);
+      }
+
+      // 2) send chat to Node -> Flask (auto has_image if image_name present)
       const res = await apiFetch(`/api/rag/chat`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: USER_ID,           // real app: use auth user id
-          chat_id: activeChatId,      // <-- use the active chat's ID
+          user_id: USER_ID,
+          chat_id: activeChatId,
           model_name: selectedModel,
           question: finalQuestion,
+          // only send when present; server converts to has_image=true
+          ...(image_name ? { image_name } : {}),
         }),
       });
 
-      let data: any;
-      try {
-        data = await res.json();
-      } catch {
-        const text = await res.text();
-        throw new Error(text?.slice(0, 200) || "Invalid response from server");
-      }
+      const data = await res.json().catch(async () => ({ error: await res.text() }));
       if (!res.ok) throw new Error(data?.error || "Chat request failed");
 
       const assistantText: string = data.response ?? "(no response)";
@@ -219,10 +315,11 @@ export default function Chat() {
             : c
         )
       );
+      // keep pendingImage as-is so user can retry
     }
   };
 
-  // ===== Create new chat =====
+  // ===== new chat =====
   const createNewChat = () => {
     const id = newId();
     const newChat: Chat = { id, title: "New Conversation", messages: [] };
@@ -230,16 +327,16 @@ export default function Chat() {
     setActiveChatId(newChat.id);
   };
 
-  // ===== Merge chats (calls Flask via Node) =====
+  // ===== merge chats =====
   const mergeSelectedChats = async () => {
     if (selectedChats.length < 2) return;
 
-    // Create a new chat to hold merged result
     const newChatId = newId();
 
     try {
       const res = await apiFetch(`/api/rag/merge_chats`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_id: USER_ID,
           new_chat_id: newChatId,
@@ -250,23 +347,18 @@ export default function Chat() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Merge failed");
 
-      // Locally merge message arrays for UX continuity
+      // locally merge for UX continuity
       const mergedMessages: Message[] = [];
       selectedChats.forEach((cid) => {
         const chat = chats.find((c) => c.id === cid);
         if (chat) mergedMessages.push(...chat.messages);
       });
-      const mergedChat: Chat = {
-        id: newChatId,
-        title: "Merged Conversation",
-        messages: mergedMessages,
-      };
+      const mergedChat: Chat = { id: newChatId, title: "Merged Conversation", messages: mergedMessages };
 
       setChats((prev) => [...prev, mergedChat]);
       setActiveChatId(newChatId);
       setSelectMode(false);
       setSelectedChats([]);
-
       toast({ title: "Merged", description: `Created chat ${newChatId} from ${selectedChats.length} chats.` });
     } catch (err: any) {
       console.error("Merge error:", err);
@@ -274,7 +366,7 @@ export default function Chat() {
     }
   };
 
-  // ===== Text selection -> snippets =====
+  // ===== snippets =====
   const handleTextSelection = (messageId: string) => {
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim();
@@ -287,7 +379,6 @@ export default function Chat() {
 
   const removeSnippet = (snippetId: string) =>
     setSelectedSnippets((prev) => prev.filter((s) => s.id !== snippetId));
-
   const clearAllSnippets = () => setSelectedSnippets([]);
 
   const selectedModelName = useMemo(
@@ -295,7 +386,7 @@ export default function Chat() {
     [selectedModel]
   );
 
-  // ===== Persist active chat vector store on unload (optional) =====
+  // ===== persist vector store on unload =====
   useEffect(() => {
     const onUnload = () => {
       try {
@@ -346,9 +437,7 @@ export default function Chat() {
                   onClick={() => {
                     if (selectMode) {
                       setSelectedChats((prev) =>
-                        prev.includes(chat.id)
-                          ? prev.filter((id) => id !== chat.id)
-                          : [...prev, chat.id]
+                        prev.includes(chat.id) ? prev.filter((id) => id !== chat.id) : [...prev, chat.id]
                       );
                     } else {
                       setActiveChatId(chat.id);
@@ -405,7 +494,17 @@ export default function Chat() {
                     )}
                     onMouseUp={() => handleTextSelection(message.id)}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+
+                    {/* render single image if present */}
+                    {message.image && (
+                      // eslint-disable-next-line jsx-a11y/alt-text
+                      <img
+                        src={message.image}
+                        className="mt-2 rounded border border-border max-h-48 object-contain bg-background"
+                      />
+                    )}
+
                     {message.model && message.role === "assistant" && (
                       <p className="text-xs opacity-70 mt-1">via {message.model}</p>
                     )}
@@ -424,49 +523,60 @@ export default function Chat() {
             </div>
           </ScrollArea>
 
-          {/* Input */}
+          {/* Input + Single Attachment */}
           <div className="p-4 border-t border-border">
-            <div className="max-w-3xl mx-auto space-y-2">
-              {selectedSnippets.length > 0 && (
+            <div className="max-w-3xl mx-auto space-y-3">
+              {/* pending image preview */}
+              {pendingImage && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium flex items-center gap-2">
-                      <Tag className="h-3 w-3" />
-                      Selected text ({selectedSnippets.length})
-                    </p>
-                    <Button size="sm" variant="ghost" onClick={clearAllSnippets} className="h-6 text-xs">
-                      Clear all
+                    <p className="text-xs font-medium">Attachment</p>
+                    <Button size="sm" variant="ghost" onClick={clearPendingImage} className="h-6 text-xs">
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Remove
                     </Button>
                   </div>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {selectedSnippets.map((snippet) => (
-                      <div
-                        key={snippet.id}
-                        className="flex items-start gap-2 p-2 bg-muted rounded border border-border text-sm"
-                      >
-                        <p className="flex-1 min-w-0 break-words">{snippet.content}</p>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-5 w-5 flex-shrink-0"
-                          onClick={() => removeSnippet(snippet.id)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
+                  <div className="relative border border-border rounded overflow-hidden w-52">
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <img src={pendingImage.dataUrl} className="w-52 h-36 object-cover bg-background" />
+                    <div className="absolute bottom-0 left-0 right-0 text-[10px] bg-black/40 text-white px-1 truncate">
+                      {pendingImage.name}
+                    </div>
                   </div>
                 </div>
               )}
+
               <div className="flex gap-2">
+                {/* hidden input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onFileSelected}
+                />
+
+                {/* attach button */}
+                <Button type="button" variant="outline" onClick={onPickImage} title="Attach image">
+                  <ImageIcon className="h-4 w-4 mr-2" />
+                  Image
+                </Button>
+
+                {/* message input */}
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder={selectedSnippets.length > 0 ? "Ask about the selected text..." : "Type your message..."}
+                  placeholder={
+                    selectedSnippets.length > 0
+                      ? "Ask about the selected text..."
+                      : "Type your message..."
+                  }
                   className="flex-1"
                 />
-                <Button onClick={handleSend} size="icon">
+
+                {/* send */}
+                <Button onClick={handleSend} size="icon" title="Send">
                   <Send className="h-4 w-4" />
                 </Button>
               </div>

@@ -1,33 +1,36 @@
-const axios = require('axios');
 
-// URL of your Flask RAG service
-const RAG_BASE_URL = 'https://wholistic-felicidad-crankily.ngrok-free.dev'; // or process.env.RAG_SERVICE_URL
-// const RAG_BASE_URL_first = 'https://wholistic-felicidad-crankily.ngrok-free.dev'; // or process.env.RAG_SERVICE_URL
+const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
+const mime = require('mime-types');
 
 // Shared Supabase client (single source of truth)
 const { supabase } = require('./supabase');
 
+// -------------------- CONFIG --------------------
 const app = express();
 const port = 3001;
 
+// Point this to your Flask MULTI-CHAT RAG service (NOT the ngrok inspector page!)
+const RAG_BASE_URL ='https://wholistic-felicidad-crankily.ngrok-free.dev';
+
+// JSON body limits (allow some headroom if questions get long)
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Middleware to log every incoming request
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
-// Defines a GET endpoint to send a test message to the frontend.
-app.get('/api/test', (req, res) => {
+// Health/test endpoint
+app.get('/api/test', (_req, res) => {
   res.json({ message: 'Hello from the backend!' });
 });
 
 // -------------------- AUTH ENDPOINTS --------------------
-
 const loginHandler = require('./auth_login');
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -35,14 +38,12 @@ app.post('/api/auth/login', async (req, res) => {
     const status = result?.status || 200;
     const { status: _s, ...payload } = result || {};
 
-    // Log token if available
-    if (payload?.token) console.log(`[AUTH] Access token (truncated): ${payload.token.slice(0, 12)}...`);
-
+    if (payload?.token) {
+      console.log(`[AUTH] Access token (truncated): ${String(payload.token).slice(0, 12)}...`);
+    }
     return res.status(status).json(payload);
   } catch (err) {
-    return res
-      .status(500)
-      .json({ error: err?.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 });
 
@@ -54,9 +55,7 @@ app.post('/api/auth/signup', async (req, res) => {
     const { status: _s, ...payload } = result || {};
     return res.status(status).json(payload);
   } catch (err) {
-    return res
-      .status(500)
-      .json({ error: err?.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 });
 
@@ -68,9 +67,7 @@ app.post('/api/auth/session', async (req, res) => {
     const { status: _s, ...payload } = result || {};
     return res.status(status).json(payload);
   } catch (err) {
-    return res
-      .status(500)
-      .json({ error: err?.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 });
 
@@ -82,49 +79,141 @@ app.post('/api/auth/logout', async (req, res) => {
     const { status: _s, ...payload } = result || {};
     return res.status(status).json(payload);
   } catch (err) {
-    return res
-      .status(500)
-      .json({ error: err?.message || String(err) });
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 });
 
-// -------------------- SIMPLE AI MESSAGE --------------------
+// -------------------- UTIL: FILENAME SANITIZER --------------------
+function sanitizeFilename(name) {
+  return String(name || 'upload').replace(/[^\w.\-]+/g, '_');
+}
 
+// -------------------- IMAGE UPLOAD (Supabase) --------------------
+// Accepts multipart/form-data: fields => user_id, chat_id; file => image
+const uploadMemory = multer({ storage: multer.memoryStorage() });
+
+/**
+ * POST /api/rag/image
+ * form-data:
+ *  - user_id (required)
+ *  - chat_id (required)
+ *  - image   (file, required)
+ *
+ * Returns: { image_name: string }
+ *   image_name is the exact key stored in Supabase bucket 'chat_vectors'
+ *   Your Flask will download it via:
+ *     supabase.storage.from_("chat_vectors").download(image_name)
+ */
+app.post('/api/rag/image', uploadMemory.single('image'), async (req, res) => {
+  try {
+    const { user_id, chat_id } = req.body || {};
+    const file = req.file;
+
+    if (!user_id || !chat_id) {
+      return res.status(400).json({ error: 'user_id and chat_id are required' });
+    }
+    if (!file) {
+      return res.status(400).json({ error: 'image file is required (field name: image)' });
+    }
+
+    const original = sanitizeFilename(file.originalname || 'upload');
+    const ext = mime.extension(file.mimetype) || original.split('.').pop() || 'bin';
+    const stamp = Date.now();
+    const rand = Math.random().toString(36).slice(2, 8);
+    // ensure single dot between base and extension
+    const base = original.replace(/\.[^/.]+$/, '');
+    const filename = `${base}.${ext}`;
+
+    const storagePath = `images/${user_id}/${chat_id}/${stamp}-${rand}-${filename}`.replace(/\.+\./g, '.');
+
+    const { error } = await supabase.storage
+      .from('chat_vectors')
+      .upload(storagePath, file.buffer, {
+        contentType: file.mimetype || 'application/octet-stream',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('[UPLOAD] Supabase error:', error);
+      return res.status(500).json({ error: 'Failed to upload image to storage' });
+    }
+
+    console.log(`[UPLOAD] Saved to Supabase: ${storagePath}`);
+    return res.status(201).json({ image_name: storagePath });
+  } catch (e) {
+    console.error('[UPLOAD] /api/rag/image error:', e?.message || e);
+    return res.status(500).json({ error: 'Image upload failed' });
+  }
+});
 
 // -------------------- RAG ENDPOINTS (Flask Integration) --------------------
 
-// Forward chat request to Flask RAG service
-// /api/rag/chat
+/**
+ * POST /api/rag/chat
+ * Body:
+ *  - user_id (required)
+ *  - chat_id (required)
+ *  - model_name (required)
+ *  - question (required)
+ *  - image_name (optional)  -> if provided, we set has_image=true automatically
+ *  - has_image (optional)   -> overrides auto-detect if provided as true
+ */
 app.post('/api/rag/chat', async (req, res) => {
   try {
-    const { user_id, chat_id, model_name, question } = req.body || {};
+    const { user_id, chat_id, model_name, question, image_name, has_image } = req.body || {};
     if (!user_id || !chat_id || !model_name || !question) {
       return res.status(400).json({ error: 'user_id, chat_id, model_name, and question are required' });
     }
 
-    const response = await axios.post(
-      `${RAG_BASE_URL}/chat`,
-      { user_id, chat_id, model_name, question },
-      { timeout: 25000, validateStatus: () => true }
+    // Auto determine has_image if not explicitly provided
+    const willSendHasImage =
+      typeof has_image !== 'undefined'
+        ? String(has_image).toLowerCase() === 'true' || has_image === true
+        : Boolean(image_name);
+
+    const payload = {
+      user_id,
+      chat_id,
+      model_name,
+      question,
+      has_image: willSendHasImage ? 'true' : 'false', // Flask checks lowercased string
+      image_name: image_name || 'false',              // Flask treats "false" as no image
+    };
+
+    console.log(
+      `[RAG] → /chat user:${user_id} chat:${chat_id} model:${model_name} has_image:${payload.has_image} image_name:${payload.image_name}`
     );
 
+    const response = await axios.post(`${RAG_BASE_URL}/chat`, payload, {
+      timeout: 30000,
+      validateStatus: () => true,
+    });
+
+    const short =
+      typeof response.data === 'string'
+        ? response.data.slice(0, 300)
+        : JSON.stringify(response.data).slice(0, 300);
+
+    console.log(`[RAG] ← /chat [${response.status}] ${short}`);
+
     if (response.status >= 200 && response.status < 300) {
-      // Assume Flask responded with JSON
       return res.status(response.status).json(response.data);
     }
 
-    // Non-2xx from Flask: try to stringify safely
-    const raw = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-    console.error('[RAG] /chat upstream error:', response.status, raw.slice(0, 300));
-    return res.status(response.status).json({ error: 'RAG upstream error', detail: raw.slice(0, 300) });
+    return res.status(response.status).json({
+      error: 'RAG upstream error',
+      detail: short,
+    });
   } catch (err) {
     console.error('[RAG] /chat error:', err?.message || err);
     return res.status(500).json({ error: 'RAG chat request failed' });
   }
 });
 
-
-// Forward close_chat request to Flask RAG service
+/**
+ * POST /api/rag/close_chat
+ * Body: { user_id, chat_id }
+ */
 app.post('/api/rag/close_chat', async (req, res) => {
   try {
     const { user_id, chat_id } = req.body || {};
@@ -132,148 +221,35 @@ app.post('/api/rag/close_chat', async (req, res) => {
       return res.status(400).json({ error: 'user_id and chat_id are required' });
     }
 
-    console.log(`[RAG] Persisting and closing chat for user ${user_id}, chat ${chat_id}...`);
+    console.log(`[RAG] → /close_chat user:${user_id} chat:${chat_id}`);
 
-    const response = await axios.post(
-      `${RAG_BASE_URL}/close_chat`,
-      { user_id, chat_id },
-      { timeout: 25000 }
-    );
+    const response = await axios.post(`${RAG_BASE_URL}/close_chat`, { user_id, chat_id }, {
+      timeout: 25000,
+    });
 
+    console.log(`[RAG] ← /close_chat [${response.status}]`);
     return res.status(response.status).json(response.data);
   } catch (err) {
-    console.error('[RAG] /close_chat error:', err.response?.data || err.message);
+    console.error('[RAG] /close_chat error:', err?.message || err);
     const status = err.response?.status || 500;
-    return res.status(status).json({
-      error: err.response?.data?.error || 'RAG close_chat request failed',
-    });
+    return res.status(status).json({ error: 'RAG close_chat request failed' });
   }
 });
 
-// // -------------------- START SERVER --------------------
-
-// app.listen(port, () => {
-//   console.log(`✅ Server is running on http://localhost:${port}`);
-// });
-// -------------------- RAG ENDPOINTS (Flask Integration) --------------------
-
-// // Constant model for now
-// const FIXED_MODEL_NAME = "google/gemma-3n-e2b-it:free";
-
-// // Forward chat request to Flask RAG service
-// app.post('/api/rag/chat', async (req, res) => {
-//   try {
-//     // Extract body
-//     const { user_id, chat_id, question } = req.body || {};
-
-//     // Validate required fields
-//     if (!user_id || !chat_id || !question) {
-//       return res.status(400).json({
-//         error: 'user_id, chat_id, and question are required',
-//       });
-//     }
-
-//     console.log(
-//       `[RAG] → Sending chat to Flask | user:${user_id} chat:${chat_id} model:${FIXED_MODEL_NAME} question:"${question.slice(
-//         0,
-//         100
-//       )}..."`
-//     );
-
-//     // Send to Flask service
-//     const response = await axios.post(
-//       `${RAG_BASE_URL}/chat`,
-//       { user_id, chat_id, model_name: FIXED_MODEL_NAME, question },
-//       { timeout: 25000, validateStatus: () => true }
-//     );
-
-//     // Always log Flask response (status + trimmed data)
-//     const shortData =
-//       typeof response.data === "string"
-//         ? response.data.slice(0, 300)
-//         : JSON.stringify(response.data).slice(0, 300);
-
-//     console.log(`[RAG] ← Flask responded [${response.status}]: ${shortData}`);
-
-//     // If success (2xx), forward JSON directly
-//     if (response.status >= 200 && response.status < 300) {
-//       return res.status(response.status).json(response.data);
-//     }
-
-//     // If non-2xx, wrap the error
-//     return res.status(response.status).json({
-//       error: "RAG upstream error",
-//       detail: shortData,
-//     });
-//   } catch (err) {
-//     console.error("[RAG] /chat error:", err?.message || err);
-//     return res
-//       .status(500)
-//       .json({ error: "RAG chat request failed", detail: err?.message || err });
-//   }
-// });
-
-// // Forward close_chat request to Flask RAG service
-// app.post('/api/rag/close_chat', async (req, res) => {
-//   try {
-//     const { user_id, chat_id } = req.body || {};
-//     if (!user_id || !chat_id) {
-//       return res
-//         .status(400)
-//         .json({ error: "user_id and chat_id are required" });
-//     }
-
-//     console.log(`[RAG] → Closing chat for user:${user_id} chat:${chat_id}`);
-
-//     const response = await axios.post(
-//       `${RAG_BASE_URL}/close_chat`,
-//       { user_id, chat_id },
-//       { timeout: 25000, validateStatus: () => true }
-//     );
-
-//     // Always log Flask response (status + partial data)
-//     const shortData =
-//       typeof response.data === "string"
-//         ? response.data.slice(0, 300)
-//         : JSON.stringify(response.data).slice(0, 300);
-
-//     console.log(`[RAG] ← Flask close_chat [${response.status}]: ${shortData}`);
-
-//     if (response.status >= 200 && response.status < 300) {
-//       return res.status(response.status).json(response.data);
-//     }
-
-//     return res.status(response.status).json({
-//       error: "RAG close_chat upstream error",
-//       detail: shortData,
-//     });
-//   } catch (err) {
-//     console.error("[RAG] /close_chat error:", err?.message || err);
-//     const status = err.response?.status || 500;
-//     return res.status(status).json({
-//       error: "RAG close_chat request failed",
-//       detail: err.response?.data || err?.message,
-//     });
-//   }
-// });
-
-// // -------------------- START SERVER --------------------
-
-
-// -------------------- RAG: Merge Chats (Flask Integration) --------------------
+/**
+ * POST /api/rag/merge_chats
+ * Body: { user_id, new_chat_id, merge_chat_ids: string[] }
+ */
 app.post('/api/rag/merge_chats', async (req, res) => {
   try {
     const { user_id, new_chat_id, merge_chat_ids } = req.body || {};
-
     if (!user_id || !new_chat_id || !Array.isArray(merge_chat_ids) || merge_chat_ids.length < 2) {
       return res.status(400).json({
         error: 'user_id, new_chat_id and merge_chat_ids (>=2) are required'
       });
     }
 
-    console.log(
-      `[RAG] → Merging chats for user:${user_id} new_chat:${new_chat_id} from: [${merge_chat_ids.join(', ')}]`
-    );
+    console.log(`[RAG] → /merge_chats user:${user_id} new_chat:${new_chat_id} from:[${merge_chat_ids.join(', ')}]`);
 
     const response = await axios.post(
       `${RAG_BASE_URL}/merge_chats`,
@@ -281,26 +257,29 @@ app.post('/api/rag/merge_chats', async (req, res) => {
       { timeout: 30000, validateStatus: () => true }
     );
 
-    const shortData =
-      typeof response.data === "string"
+    const short =
+      typeof response.data === 'string'
         ? response.data.slice(0, 300)
         : JSON.stringify(response.data).slice(0, 300);
 
-    console.log(`[RAG] ← Flask merge_chats [${response.status}]: ${shortData}`);
+    console.log(`[RAG] ← /merge_chats [${response.status}] ${short}`);
 
     if (response.status >= 200 && response.status < 300) {
       return res.status(response.status).json(response.data);
     }
 
     return res.status(response.status).json({
-      error: "RAG merge_chats upstream error",
-      detail: shortData,
+      error: 'RAG merge_chats upstream error',
+      detail: short,
     });
   } catch (err) {
-    console.error("[RAG] /merge_chats error:", err?.message || err);
-    return res.status(500).json({ error: "RAG merge_chats request failed", detail: err?.message || err });
+    console.error('[RAG] /merge_chats error:', err?.message || err);
+    return res.status(500).json({ error: 'RAG merge_chats request failed' });
   }
 });
+
+// -------------------- START SERVER --------------------
 app.listen(port, () => {
   console.log(`✅ Server is running on http://localhost:${port}`);
+  console.log(`[RAG] Base URL: ${RAG_BASE_URL}`);
 });
