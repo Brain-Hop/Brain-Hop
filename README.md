@@ -1,73 +1,83 @@
-# Welcome to your Lovable project
+# Brain Hop
 
-## Project info
+Brain Hop is a modern, web-based chat application that allows users to interact with a variety of AI models in a seamless and intuitive interface.
 
-**URL**: https://lovable.dev/projects/05618b3a-5354-4985-86de-a15e45f6dbec
+**Live Demo:** [https://brain-hop.vercel.app/](https://brain-hop.vercel.app/)
 
-## How can I edit this code?
+## About The Project
 
-There are several ways of editing your application.
+This project is a feature-rich chat interface designed to provide a great user experience for interacting with different AI language models. It includes functionalities for managing conversations, selecting models, and even merging chat histories. The frontend is built with React and TypeScript, styled with Tailwind CSS and Shadcn UI, while the backend is a simple Node.js and Express server.
 
-**Use Lovable**
+## Features
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/05618b3a-5354-4985-86de-a15e45f6dbec) and start prompting.
+*   **Multi-Model Interaction:** Easily switch between different AI models like GPT-4, GPT-3.5, Claude, and Gemini for your conversations.
+*   **Conversation Management:** Create new chat sessions to keep your conversations organized.
+*   **Chat Merging:** Select and merge multiple chat conversations into a single, unified chat history.
+*   **Text Snippets:** Select and tag important pieces of text from the conversation for easy reference.
+*   **Theme Toggle:** Switch between light and dark modes for comfortable viewing.
+*   **Responsive Design:** A clean and responsive layout that works on different screen sizes.
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+To get a local copy up and running, follow these simple steps.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+*   Node.js and npm (or bun) installed on your machine.
 
-Follow these steps:
+### Installation
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1.  **Clone the repo**
+    ```sh
+    git clone <your-repository-url>
+    cd Brain-Hop
+    ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2.  **Install Frontend Dependencies**
+    ```sh
+    npm install
+    ```
+    or
+    ```sh
+    bun install
+    ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3.  **Install Backend Dependencies**
+    ```sh
+    cd backend
+    npm install
+    ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+### Running the Application
 
-**Edit a file directly in GitHub**
+1.  **Start the Backend Server**
+    Navigate to the `backend` directory and run:
+    ```sh
+    npm start
+    ```
+    The backend server will start on `http://localhost:3001`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+2.  **Start the Frontend Development Server**
+    In the root project directory, run:
+    ```sh
+    npm run dev
+    ```
+    or
+    ```sh
+    bun run dev
+    ```
+    Open [http://localhost:5173](http://localhost:5173) (or the address shown in your terminal) to view the application in your browser.
 
-**Use GitHub Codespaces**
+## Technology Stack
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+*   **Frontend:**
+    *   [React](https://reactjs.org/)
+    *   [TypeScript](https://www.typescriptlang.org/)
+    *   [Vite](https://vitejs.dev/)
+    *   [Tailwind CSS](https://tailwindcss.com/)
+    *   [Shadcn UI](https://ui.shadcn.com/)
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/05618b3a-5354-4985-86de-a15e45f6dbec) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+*   **Backend:**
+    *   [Node.js](https://nodejs.org/)
+    *   [Express.js](https://expressjs.com/)
+    *   [CORS](https://www.npmjs.com/package/cors)
