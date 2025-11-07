@@ -15,7 +15,7 @@ export function Navbar() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link to={brandHref} className="flex items-center gap-2 font-semibold text-lg">
           <Bot className="h-6 w-6 text-primary" />
-          <span>AI Chat</span>
+          <span>Brain Hop </span>
         </Link>
 
         <div className="flex items-center gap-2">
