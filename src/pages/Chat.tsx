@@ -1,5 +1,5 @@
 // src/pages/Chat.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,13 @@ import { MessageSquare, Plus, Send, CheckSquare, Tag, X, Scissors } from "lucide
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { MODELS, DEFAULT_MODEL_ID, loadSelectedModelId, findModel } from "@/data/models";
+import { useToast } from "@/hooks/use-toast";
+
+type Role = "user" | "assistant";
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: Role;
   content: string;
   model?: string;
 }
@@ -30,109 +33,260 @@ interface Chat {
   messages: Message[];
 }
 
+const LS_KEY = "chat_state_v3";
+
+// ====== CONSTANT USER ID (for now) ======
+const USER_ID = "100";
+
+// Safe JSON parse
+function safeParse<T>(v: string | null, fallback: T): T {
+  try {
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// Tiny ID helper
+function newId() {
+  return (typeof crypto !== "undefined" && "randomUUID" in crypto && crypto.randomUUID()) || Date.now().toString();
+}
+
 export default function Chat() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, token } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-  // initialize model from localStorage (selected on Models page), else default
-  const initialModelId = useMemo(
-    () => loadSelectedModelId() ?? DEFAULT_MODEL_ID,
-    []
-  );
-
+  // ===== Model selection (seed from models page or default) =====
+  const initialModelId = useMemo(() => loadSelectedModelId() ?? DEFAULT_MODEL_ID, []);
   const [selectedModel, setSelectedModel] = useState<string>(initialModelId);
-  const [chats, setChats] = useState<Chat[]>([{ id: "1", title: "New Conversation", messages: [] }]);
-  const [activeChatId, setActiveChatId] = useState("1");
+
+  // ===== App state (persisted) =====
+  const initialChatId = useMemo(() => newId(), []);
+  const [chats, setChats] = useState<Chat[]>([
+    { id: initialChatId, title: "New Conversation", messages: [] },
+  ]);
+  const [activeChatId, setActiveChatId] = useState<string>(initialChatId);
   const [input, setInput] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedChats, setSelectedChats] = useState<string[]>([]);
   const [selectedSnippets, setSelectedSnippets] = useState<TextSnippet[]>([]);
 
-  const activeChat = chats.find((chat) => chat.id === activeChatId);
+  const hydratedRef = useRef(false);
 
+  const activeChat = chats.find((c) => c.id === activeChatId);
+
+  // ===== Redirect if not logged in =====
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate("/login", { replace: true });
     }
   }, [isAuthenticated, loading, navigate]);
 
-  // if localStorage changed later (rare), keep one-time correction
+  // ===== Hydrate from localStorage =====
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    const cached = safeParse<{
+      chats: Chat[];
+      activeChatId: string;
+      selectedModel: string;
+    }>(window.localStorage.getItem(LS_KEY), {
+      chats: [{ id: initialChatId, title: "New Conversation", messages: [] }],
+      activeChatId: initialChatId,
+      selectedModel: initialModelId,
+    });
+
+    setChats(cached.chats?.length ? cached.chats : [{ id: initialChatId, title: "New Conversation", messages: [] }]);
+    setActiveChatId(cached.activeChatId || initialChatId);
+    setSelectedModel(cached.selectedModel || initialModelId);
+  }, [initialChatId, initialModelId]);
+
+  // ===== Persist to localStorage (fast render future) =====
+  useEffect(() => {
+    const snapshot = JSON.stringify({
+      chats,
+      activeChatId,
+      selectedModel,
+    });
+    window.localStorage.setItem(LS_KEY, snapshot);
+  }, [chats, activeChatId, selectedModel]);
+
+  // ===== Keep local selected model synced if user changes it elsewhere =====
   useEffect(() => {
     const id = loadSelectedModelId();
     if (id && id !== selectedModel) setSelectedModel(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSend = () => {
+  // ===== API helper that attaches bearer (if present) =====
+  const apiFetch = (path: string, init: RequestInit = {}) =>
+    fetch(`${apiBaseUrl}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init.headers || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+  // ===== Send message -> Node -> Flask RAG -> append assistant =====
+  const handleSend = async () => {
     if (!input.trim() || !activeChat) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
+    // Build question with selected snippets
+    const contextPrefix =
+      selectedSnippets.length > 0
+        ? `Context snippets:\n${selectedSnippets.map((s) => `- ${s.content}`).join("\n")}\n\n`
+        : "";
+    const finalQuestion = `${contextPrefix}${input.trim()}`;
+
+    // Optimistic user bubble
+    const userMsg: Message = {
+      id: newId(),
       role: "user",
       content: input,
       model: selectedModel,
     };
 
-    const updatedChats = chats.map((chat) =>
-      chat.id === activeChatId
-        ? { ...chat, messages: [...chat.messages, newMessage] }
-        : chat
+    // === Set title immediately from FIRST user message ===
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === activeChatId
+          ? {
+              ...c,
+              title:
+                c.title === "New Conversation" && c.messages.length === 0
+                  ? userMsg.content.trim().slice(0, 48) || "New Conversation"
+                  : c.title,
+              messages: [...c.messages, userMsg],
+            }
+          : c
+      )
     );
-
-    setChats(updatedChats);
     setInput("");
 
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
+    try {
+      const res = await apiFetch(`/api/rag/chat`, {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: USER_ID,           // real app: use auth user id
+          chat_id: activeChatId,      // <-- use the active chat's ID
+          model_name: selectedModel,
+          question: finalQuestion,
+        }),
+      });
+
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        const text = await res.text();
+        throw new Error(text?.slice(0, 200) || "Invalid response from server");
+      }
+      if (!res.ok) throw new Error(data?.error || "Chat request failed");
+
+      const assistantText: string = data.response ?? "(no response)";
+      const aiMsg: Message = {
+        id: newId(),
         role: "assistant",
-        content: `This is a response from ${selectedModel}. Your message: "${newMessage.content}"`,
+        content: assistantText,
         model: selectedModel,
       };
 
       setChats((prev) =>
-        prev.map((chat) =>
-          chat.id === activeChatId
-            ? { ...chat, messages: [...chat.messages, aiMessage] }
-            : chat
+        prev.map((c) => (c.id === activeChatId ? { ...c, messages: [...c.messages, aiMsg] } : c))
+      );
+    } catch (err: any) {
+      console.error("RAG chat error:", err);
+      toast({
+        title: "Chat failed",
+        description: err?.message || "Unable to get a response.",
+        variant: "destructive",
+      });
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === activeChatId
+            ? {
+                ...c,
+                messages: [
+                  ...c.messages,
+                  { id: newId(), role: "assistant", content: "Sorry, something went wrong.", model: selectedModel },
+                ],
+              }
+            : c
         )
       );
-    }, 1000);
+    }
   };
 
+  // ===== Create new chat =====
   const createNewChat = () => {
-    const newChat: Chat = { id: Date.now().toString(), title: "New Conversation", messages: [] };
+    const id = newId();
+    const newChat: Chat = { id, title: "New Conversation", messages: [] };
     setChats((prev) => [...prev, newChat]);
     setActiveChatId(newChat.id);
   };
 
-  const mergeSelectedChats = () => {
+  // ===== Merge chats (calls Flask via Node) =====
+  const mergeSelectedChats = async () => {
     if (selectedChats.length < 2) return;
-    const mergedMessages: Message[] = [];
-    selectedChats.forEach((chatId) => {
-      const chat = chats.find((c) => c.id === chatId);
-      if (chat) mergedMessages.push(...chat.messages);
-    });
-    const newChat: Chat = { id: Date.now().toString(), title: "Merged Conversation", messages: mergedMessages };
-    setChats((prev) => [...prev, newChat]);
-    setActiveChatId(newChat.id);
-    setSelectMode(false);
-    setSelectedChats([]);
+
+    // Create a new chat to hold merged result
+    const newChatId = newId();
+
+    try {
+      const res = await apiFetch(`/api/rag/merge_chats`, {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: USER_ID,
+          new_chat_id: newChatId,
+          merge_chat_ids: selectedChats,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Merge failed");
+
+      // Locally merge message arrays for UX continuity
+      const mergedMessages: Message[] = [];
+      selectedChats.forEach((cid) => {
+        const chat = chats.find((c) => c.id === cid);
+        if (chat) mergedMessages.push(...chat.messages);
+      });
+      const mergedChat: Chat = {
+        id: newChatId,
+        title: "Merged Conversation",
+        messages: mergedMessages,
+      };
+
+      setChats((prev) => [...prev, mergedChat]);
+      setActiveChatId(newChatId);
+      setSelectMode(false);
+      setSelectedChats([]);
+
+      toast({ title: "Merged", description: `Created chat ${newChatId} from ${selectedChats.length} chats.` });
+    } catch (err: any) {
+      console.error("Merge error:", err);
+      toast({ title: "Merge failed", description: err?.message || "Unable to merge chats.", variant: "destructive" });
+    }
   };
 
+  // ===== Text selection -> snippets =====
   const handleTextSelection = (messageId: string) => {
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim();
     if (selectedText) {
-      const newSnippet: TextSnippet = { id: Date.now().toString(), content: selectedText, messageId };
+      const newSnippet: TextSnippet = { id: newId(), content: selectedText, messageId };
       setSelectedSnippets((prev) => [...prev, newSnippet]);
       selection?.removeAllRanges();
     }
   };
 
-  const removeSnippet = (snippetId: string) => {
+  const removeSnippet = (snippetId: string) =>
     setSelectedSnippets((prev) => prev.filter((s) => s.id !== snippetId));
-  };
 
   const clearAllSnippets = () => setSelectedSnippets([]);
 
@@ -140,6 +294,22 @@ export default function Chat() {
     () => findModel(selectedModel)?.name ?? selectedModel,
     [selectedModel]
   );
+
+  // ===== Persist active chat vector store on unload (optional) =====
+  useEffect(() => {
+    const onUnload = () => {
+      try {
+        const url = `${apiBaseUrl}/api/rag/close_chat`;
+        const payload = JSON.stringify({ user_id: USER_ID, chat_id: activeChatId });
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon(url, blob);
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [apiBaseUrl, activeChatId]);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -223,36 +393,34 @@ export default function Chat() {
           {/* Messages */}
           <ScrollArea className="flex-1 p-4">
             <div className="max-w-3xl mx-auto space-y-4">
-              {chats
-                .find((c) => c.id === activeChatId)
-                ?.messages.map((message) => (
+              {activeChat?.messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={cn("flex gap-3 group", message.role === "user" ? "justify-end" : "justify-start")}
+                >
                   <div
-                    key={message.id}
-                    className={cn("flex gap-3 group", message.role === "user" ? "justify-end" : "justify-start")}
+                    className={cn(
+                      "rounded-2xl px-4 py-3 max-w-[80%] relative select-text",
+                      message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}
+                    onMouseUp={() => handleTextSelection(message.id)}
                   >
-                    <div
-                      className={cn(
-                        "rounded-2xl px-4 py-3 max-w-[80%] relative select-text",
-                        message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                      )}
-                      onMouseUp={() => handleTextSelection(message.id)}
+                    <p className="text-sm">{message.content}</p>
+                    {message.model && message.role === "assistant" && (
+                      <p className="text-xs opacity-70 mt-1">via {message.model}</p>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleTextSelection(message.id)}
+                      title="Select text and click to tag"
                     >
-                      <p className="text-sm">{message.content}</p>
-                      {message.model && message.role === "assistant" && (
-                        <p className="text-xs opacity-70 mt-1">via {message.model}</p>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleTextSelection(message.id)}
-                        title="Select text and click to tag"
-                      >
-                        <Scissors className="h-3 w-3" />
-                      </Button>
-                    </div>
+                      <Scissors className="h-3 w-3" />
+                    </Button>
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
           </ScrollArea>
 

@@ -14,7 +14,7 @@ export type ModelInfo = {
 export const MODELS: ModelInfo[] = [
   // 1–10
   {
-    id: "openrouter-polaris-alpha",
+    id: "openrouter/polaris-alpha",
     name: "Polaris Alpha  ",
     description:
       "Cloaked community model; strong generalist with standout coding, tool use, and instruction following. Prompts/completions logged by provider.",
@@ -23,7 +23,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 256K", "Price:  ", "Provider: OpenRouter"],
   },
   {
-    id: "nvidia-nemotron-nano-12b-2-vl",
+    id: "nvidia/nemotron-nano-12b-v2-vl:free",
     name: "NVIDIA: Nemotron Nano 12B 2 VL  ",
     description:
       "12B multimodal (video/doc) model; hybrid Transformer-Mamba; OCR, chart reasoning, multi-image docs.",
@@ -32,7 +32,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: NVIDIA"],
   },
   {
-    id: "minimax-m2",
+    id: "minimax/minimax-m2:free",
     name: "MiniMax: MiniMax M2  ",
     description:
       "Compact, high-efficiency LLM for end-to-end coding & agentic workflows; 10B active (230B total).",
@@ -41,7 +41,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 197K", "Price:  ", "Provider: MiniMax"],
   },
   {
-    id: "tongyi-deepresearch-30b-a3b",
+    id: "alibaba/tongyi-deepresearch-30b-a3b:free",
     name: "Tongyi DeepResearch 30B A3B  ",
     description:
       "Agentic LLM optimized for deep information seeking and long-horizon problem solving.",
@@ -50,7 +50,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 131K", "Price:  ", "Provider: Alibaba"],
   },
   {
-    id: "meituan-longcat-flash-chat",
+    id: "meituan/longcat-flash-chat:free",
     name: "Meituan: LongCat Flash Chat  ",
     description:
       "MoE (560B total / 27B active) for conversational & agentic tasks; deterministic compute; strong tool use.",
@@ -59,7 +59,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 131K", "Price:  ", "Provider: Meituan"],
   },
   {
-    id: "nvidia-nemotron-nano-9b-v2",
+    id: "nvidia/nemotron-nano-9b-v2:free",
     name: "NVIDIA: Nemotron Nano 9B V2  ",
     description:
       "Unified reasoning/non-reasoning; emits trace + final response.",
@@ -68,7 +68,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: NVIDIA"],
   },
   {
-    id: "deepseek-v3-1",
+    id: "deepseek/deepseek-chat-v3.1:free",
     name: "DeepSeek: DeepSeek V3.1  ",
     description:
       "Hybrid reasoning model (671B total / 37B active); supports 'thinking' and 'non-thinking' modes.",
@@ -77,7 +77,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 164K", "Price:  ", "Provider: DeepSeek"],
   },
   {
-    id: "openai-gpt-oss-20b",
+    id: "openai/gpt-oss-20b:free",
     name: "OpenAI: gpt-oss-20b  ",
     description:
       "21B open-weight MoE (3.6B active); low-latency; function calling; agentic code tasks.",
@@ -86,7 +86,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 131K", "Price:  ", "Provider: OpenAI"],
   },
   {
-    id: "zai-glm-4-5-air",
+    id: "z-ai/glm-4.5-air:free",
     name: "Z.AI: GLM 4.5 Air  ",
     description:
       "Lightweight MoE; agent-centric; configurable ‘thinking’ vs real-time modes.",
@@ -95,7 +95,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 131K", "Price:  ", "Provider: Z.AI"],
   },
   {
-    id: "qwen3-coder-480b-a35b",
+    id: "qwen/qwen3-coder:free",
     name: "Qwen: Qwen3 Coder 480B A35B  ",
     description:
       "MoE coder for agentic code gen; 480B total / 35B active; long-context reasoning & tools.",
@@ -106,7 +106,7 @@ export const MODELS: ModelInfo[] = [
 
   // 11–20
   {
-    id: "qwen2-72b-instruct",
+    id: "moonshotai/kimi-k2:free",
     name: "Qwen2-72B-Instruct  ",
     description:
       "Large 72B instruction model; reasoning, code, agentic tasks.",
@@ -115,7 +115,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Qwen"],
   },
   {
-    id: "mixtral-8x22b-instruct",
+    id: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
     name: "Mixtral-8x22B-Instruct  ",
     description:
       "176B MoE (22B active); high throughput; excels at code and tools.",
@@ -124,7 +124,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 64K", "Price:  ", "Provider: Mistral"],
   },
   {
-    id: "claude-3-haiku",
+    id: "google/gemma-3n-e2b-it:free",
     name: "Claude 3 Haiku  ",
     description:
       "Efficient Claude for fast inference and multi-step logic.",
@@ -133,7 +133,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 100K", "Price:  ", "Provider: Anthropic"],
   },
   {
-    id: "gemini-flash-1-5",
+    id: "tngtech/deepseek-r1t2-chimera:free",
     name: "Gemini Flash 1.5  ",
     description:
       "Low-latency hybrid architecture; strong programming & long-context workflows.",
@@ -142,7 +142,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 1M", "Price:  ", "Provider: Google"],
   },
   {
-    id: "llama-3-70b-instruct",
+    id: "mistralai/mistral-small-3.2-24b-instruct:free",
     name: "Llama-3-70B-Instruct  ",
     description:
       "Meta’s 70B instruction model; reasoning, code & search.",
@@ -151,7 +151,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Meta"],
   },
   {
-    id: "gpt-3-5-turbo",
+    id: "deepseek/deepseek-r1-0528-qwen3-8b:free",
     name: "GPT-3.5 Turbo  ",
     description:
       "Popular OpenAI chat/coding model; quick responses; tools & reasoning.",
@@ -160,7 +160,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 16K", "Price:  ", "Provider: OpenAI"],
   },
   {
-    id: "qwen2-7b-instruct",
+    id: "deepseek/deepseek-r1-0528:free",
     name: "Qwen2-7B-Instruct  ",
     description:
       "Smaller, efficient variant for low-latency tasks.",
@@ -169,7 +169,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Qwen"],
   },
   {
-    id: "mistral-7b-instruct",
+    id: "google/gemma-3n-e4b-it:free",
     name: "Mistral-7B-Instruct  ",
     description:
       "Small, fast instruction model for agents, code, tools.",
@@ -178,7 +178,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Mistral"],
   },
   {
-    id: "command-r",
+    id: "meta-llama/llama-3.3-8b-instruct:free",
     name: "Command-R  ",
     description:
       "Cohere’s agentic reasoning model; multi-step tasks & tool use.",
@@ -187,7 +187,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Cohere"],
   },
   {
-    id: "zephyr-7b-beta",
+    id: "qwen/qwen3-4b:free",
     name: "Zephyr-7B-Beta  ",
     description:
       "Experimental agent-focused model tuned for chat & code.",
@@ -198,7 +198,7 @@ export const MODELS: ModelInfo[] = [
 
   // 21–30
   {
-    id: "gemini-1-5-pro",
+    id: "qwen/qwen3-30b-a3b:free",
     name: "Google Gemini 1.5 Pro  ",
     description:
       "Advanced multimodal model for research, code, tools, multi-image input.",
@@ -207,7 +207,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 1M", "Price:  ", "Provider: Google"],
   },
   {
-    id: "claude-3-sonnet",
+    id: "qwen/qwen3-14b:free",
     name: "Claude 3 Sonnet  ",
     description:
       "Claude’s premium agent model; code, multi-image, multi-step reasoning.",
@@ -216,7 +216,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 200K", "Price:  ", "Provider: Anthropic"],
   },
   {
-    id: "gpt-4o",
+    id: "qwen/qwen3-235b-a22b:free",
     name: "GPT-4o  ",
     description:
       "OpenAI’s fast multimodal model; leading code/text/reasoning.",
@@ -225,7 +225,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: OpenAI"],
   },
   {
-    id: "gemini-1-0-pro",
+    id: "tngtech/deepseek-r1t-chimera:free",
     name: "Gemini 1.0 Pro  ",
     description:
       "First-gen Gemini Pro; efficient agent-enabled; code & tools.",
@@ -234,7 +234,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Google"],
   },
   {
-    id: "mixtral-8x7b-instruct",
+    id: "microsoft/mai-ds-r1:free",
     name: "Mixtral-8x7B-Instruct  ",
     description:
       "Early open MoE; reasoning & coding with tool mixtures.",
@@ -243,7 +243,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 64K", "Price:  ", "Provider: Mistral"],
   },
   {
-    id: "qwen1-5-32b-chat",
+    id: "arliai/qwq-32b-arliai-rpr-v1:free",
     name: "Qwen1.5-32B-Chat  ",
     description:
       "Agentic chatbot with deep reasoning, code & search.",
@@ -252,7 +252,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Qwen"],
   },
   {
-    id: "command-light",
+    id: "agentica-org/deepcoder-14b-preview:free",
     name: "Command-Light  ",
     description:
       "Lightweight Cohere model for quick agent tasks, research, coding.",
@@ -261,7 +261,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Cohere"],
   },
   {
-    id: "llama-3-8b-instruct",
+    id: "meta-llama/llama-4-maverick:free",
     name: "Llama-3-8B-Instruct  ",
     description:
       "Lightweight Llama; fast context & coding.",
@@ -270,7 +270,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Meta"],
   },
   {
-    id: "gpt-3-5",
+    id: "meta-llama/llama-4-scout:free",
     name: "GPT-3.5  ",
     description:
       "Standard OpenAI model for agents, chat, research, coding.",
@@ -279,7 +279,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 16K", "Price:  ", "Provider: OpenAI"],
   },
   {
-    id: "qwen1-5-7b-chat",
+    id: "qwen/qwen2.5-vl-32b-instruct:free",
     name: "Qwen1.5-7B-Chat  ",
     description:
       "Small agentic chatbot for multi-step reasoning & light tools.",
@@ -290,7 +290,7 @@ export const MODELS: ModelInfo[] = [
 
   // 31–40
   {
-    id: "dbrx-instruct",
+    id: "deepseek/deepseek-chat-v3-0324:free",
     name: "dbrx-instruct  ",
     description:
       "Databricks MoE (132B total / 36B active); frontier language benchmarks.",
@@ -299,7 +299,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Databricks"],
   },
   {
-    id: "stablelm-zephyr-3b",
+    id: "mistralai/mistral-small-3.1-24b-instruct:free",
     name: "stablelm-zephyr-3b  ",
     description:
       "Efficient small agent model for low-latency chat, code & reasoning.",
@@ -308,7 +308,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Stability AI"],
   },
   {
-    id: "phi-3-mini-4k-instruct",
+    id: "google/gemma-3-4b-it:free",
     name: "phi-3-mini-4k-instruct  ",
     description:
       "Small LLM for speed; multilingual; tools; code; research chat.",
@@ -317,7 +317,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 4K", "Price:  ", "Provider: Microsoft"],
   },
   {
-    id: "neural-chat-7b",
+    id: "google/gemma-3-12b-it:free",
     name: "neural-chat-7b  ",
     description:
       "Versatile 7B tuned for conversational agents; multilingual.",
@@ -326,7 +326,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Intel"],
   },
   {
-    id: "codeqwen1-5-7b",
+    id: "google/gemma-3-27b-it:free",
     name: "codeqwen1.5-7b  ",
     description:
       "Specialized 7B for code generation, tools & agentic workflows.",
@@ -335,7 +335,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 128K", "Price:  ", "Provider: Qwen"],
   },
   {
-    id: "llama-2-70b-chat",
+    id: "mistralai/mistral-small-24b-instruct-2501:free",
     name: "llama-2-70b-chat  ",
     description:
       "Large open chat model; instruction & roleplay; code/support.",
@@ -344,7 +344,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Meta"],
   },
   {
-    id: "gpt-3-5-turbo-16k",
+    id: "deepseek/deepseek-r1-distill-llama-70b:free",
     name: "gpt-3.5-turbo-16k  ",
     description:
       "OpenAI 16K context chat/coder with function calling.",
@@ -353,7 +353,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 16K", "Price:  ", "Provider: OpenAI"],
   },
   {
-    id: "starling-lm-7b-beta",
+    id: "deepseek/deepseek-r1:free",
     name: "starling-lm-7b-beta  ",
     description:
       "7B beta model for agentic chat/coding; efficient tools.",
@@ -362,7 +362,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Hugging Face"],
   },
   {
-    id: "wizardlm-2-7b",
+    id: "google/gemini-2.0-flash-exp:free",
     name: "wizardlm-2-7b  ",
     description:
       "Compact wizard-style instruction; agentic code; multi-turn.",
@@ -371,7 +371,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: WizardLM"],
   },
   {
-    id: "gemma-7b-it",
+    id: "meta-llama/llama-3.3-70b-instruct:free",
     name: "gemma-7b-it  ",
     description:
       "Google intention-tuned 7B; robust code & chat iteration.",
@@ -382,7 +382,7 @@ export const MODELS: ModelInfo[] = [
 
   // 41–46 + the 6 you listed separately (kept at the end)
   {
-    id: "solar-10-7b-instruct",
+    id: "qwen/qwen-2.5-coder-32b-instruct:free",
     name: "solar-10.7b-instruct  ",
     description:
       "10.7B tuned for agentic reasoning, tool use, and code.",
@@ -391,7 +391,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Upstage"],
   },
   {
-    id: "openchat-8b",
+    id: "meta-llama/llama-3.2-3b-instruct:free",
     name: "openchat-8b  ",
     description:
       "Open 8B for code, chat, research, instruction workflows.",
@@ -400,7 +400,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: OpenChat"],
   },
   {
-    id: "stable-code-3b",
+    id: "qwen/qwen-2.5-72b-instruct:free",
     name: "stable-code-3b  ",
     description:
       "Open-weight 3B for multi-turn code, research, instruction.",
@@ -409,7 +409,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 32K", "Price:  ", "Provider: Stability AI"],
   },
   {
-    id: "tinyllama-1-1b",
+    id: "nousresearch/hermes-3-llama-3.1-405b:free",
     name: "tinyllama-1.1b  ",
     description:
       "Tiny 1.1B for rapid prototyping, code samples, simple dialogues.",
@@ -418,7 +418,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 8K", "Price:  ", "Provider: TinyLlama"],
   },
   {
-    id: "mpt-7b-instruct",
+    id: "mistralai/mistral-nemo:free",
     name: "mpt-7b-instruct  ",
     description:
       "Open tuning of MPT-7B for chat, coding, agentic tasks.",
@@ -427,7 +427,7 @@ export const MODELS: ModelInfo[] = [
     features: ["Context: 8K", "Price:  ", "Provider: MosaicML"],
   },
   {
-    id: "platypus2-70b-instruct",
+    id: "mistralai/mistral-7b-instruct:free",
     name: "platypus2-70b-instruct  ",
     description:
       "70B instruction-following model with robust code/reasoning.",
@@ -494,7 +494,7 @@ export const MODELS: ModelInfo[] = [
 ];
 
 // ---- helpers ----
-export const DEFAULT_MODEL_ID = MODELS[0]?.id ?? "openrouter-polaris-alpha";
+export const DEFAULT_MODEL_ID = MODELS[0]?.id ?? "openrouter/polaris-alpha";
 
 export function findModel(id: string | null | undefined): ModelInfo | undefined {
   if (!id) return undefined;
