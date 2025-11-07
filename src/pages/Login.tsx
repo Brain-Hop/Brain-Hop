@@ -1,38 +1,78 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Navbar } from "@/components/Navbar";
-import { Bot } from "lucide-react";
+import { Bot, Loader2 } from "lucide-react";
+import { FcGoogle } from "react-icons/fc"; // <-- Add this for Google icon
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login, isAuthenticated, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate("/chat", { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // TODO: Implement actual login logic with Lovable Cloud
-      toast({
-        title: "Login functionality",
-        description: "Authentication will be connected to Lovable Cloud",
+      const response = await fetch(`http://localhost:3001/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
       });
-      // Simulate login for now
-      setTimeout(() => {
-        navigate("/chat");
-      }, 1000);
-    } catch (error) {
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const expiresAt = data.session?.expires_at ? Number(data.session.expires_at) * 1000 : null;
+        login(
+          {
+            user: data.user ?? null,
+            token: data.token ?? null,
+            expiresAt,
+          },
+          { redirectTo: "/chat" },
+        );
+
+        toast({
+          title: "Login Successful",
+          description: "Redirecting to chat...",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to login. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch {
       toast({
         title: "Error",
-        description: "Failed to login. Please try again.",
+        description: "An error occurred while logging in.",
         variant: "destructive",
       });
     } finally {
@@ -40,10 +80,40 @@ export default function Login() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      const response = await fetch(`http://localhost:3001/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "google" }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.url) {
+        // Redirect user to Google OAuth
+        window.location.href = data.url;
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Google login failed.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "An error occurred while starting Google login.",
+        variant: "destructive",
+      });
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar />
-      
       <div className="container mx-auto px-4 py-16 flex items-center justify-center">
         <Card className="w-full max-w-md shadow-medium">
           <CardHeader className="space-y-1 text-center">
@@ -52,9 +122,10 @@ export default function Login() {
             </div>
             <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
             <CardDescription>
-              Enter your credentials to access your account
+              Enter your credentials or continue with Google
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -78,15 +149,45 @@ export default function Login() {
                   required
                 />
               </div>
+
               <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
+
+            {/* Divider */}
+            <div className="flex items-center justify-center my-4">
+              <div className="h-px bg-border flex-1"></div>
+              <span className="px-3 text-xs text-muted-foreground">OR</span>
+              <div className="h-px bg-border flex-1"></div>
+            </div>
+
+            {/* Google Sign In Button */}
+            <Button
+              variant="outline"
+              className="w-full flex items-center justify-center gap-2"
+              onClick={handleGoogleLogin}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FcGoogle className="h-5 w-5" />
+              )}
+              {googleLoading ? "Redirecting..." : "Sign in with Google"}
+            </Button>
           </CardContent>
+
           <CardFooter className="flex flex-col space-y-2">
             <div className="text-sm text-muted-foreground text-center">
               Don't have an account?{" "}
-              <Link to="/signup" className="text-primary hover:underline font-medium">
+              <Link
+                to="/signup"
+                className="text-primary hover:underline font-medium"
+              >
                 Sign up
               </Link>
             </div>

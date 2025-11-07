@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Navbar } from "@/components/Navbar";
 import { Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
@@ -15,14 +23,21 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate("/chat", { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
       toast({
         title: "Error",
-        description: "Passwords do not match",
+        description: "Passwords do not match.",
         variant: "destructive",
       });
       return;
@@ -31,19 +46,39 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      // TODO: Implement actual signup logic with Lovable Cloud
-      toast({
-        title: "Signup functionality",
-        description: "Authentication will be connected to Lovable Cloud",
+      // use environment variable for dynamic backend URL
+      const response = await fetch(`http://localhost:3001/api/auth/signup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
       });
-      // Simulate signup for now
-      setTimeout(() => {
-        navigate("/chat");
-      }, 1000);
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Account created successfully!",
+          description:
+            "Please check your email for confirmation (if required).",
+        });
+
+        // Redirect to login or chat after signup
+        setTimeout(() => {
+          navigate("/login");
+        }, 1000);
+      } else {
+        toast({
+          title: "Signup failed",
+          description: data.error || "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to create account. Please try again.",
+        title: "Network Error",
+        description: "Unable to connect to the server. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -54,14 +89,16 @@ export default function Signup() {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-16 flex items-center justify-center">
         <Card className="w-full max-w-md shadow-medium">
           <CardHeader className="space-y-1 text-center">
             <div className="mx-auto h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4">
               <Bot className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              Create an account
+            </CardTitle>
             <CardDescription>
               Enter your details to get started with AI Chat
             </CardDescription>
@@ -107,7 +144,10 @@ export default function Signup() {
           <CardFooter className="flex flex-col space-y-2">
             <div className="text-sm text-muted-foreground text-center">
               Already have an account?{" "}
-              <Link to="/login" className="text-primary hover:underline font-medium">
+              <Link
+                to="/login"
+                className="text-primary hover:underline font-medium"
+              >
                 Sign in
               </Link>
             </div>
