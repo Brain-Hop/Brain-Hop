@@ -14,6 +14,7 @@ module.exports = async function logout(req) {
       return { status: 500, error: error.message || String(error) };
     }
 
+    console.log('[AUTH] User logged out successfully');
     return { status: 200, message: 'signed out' };
   } catch (err) {
     return { status: 500, error: (err && err.message) || String(err) };

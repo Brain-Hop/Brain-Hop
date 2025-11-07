@@ -1,4 +1,6 @@
-import { useState } from "react";
+// src/pages/Chat.tsx
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MessageSquare, Plus, Send, CheckSquare, Tag, X, Scissors } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { MODELS, DEFAULT_MODEL_ID, loadSelectedModelId, findModel } from "@/data/models";
 
 interface Message {
   id: string;
@@ -27,17 +31,37 @@ interface Chat {
 }
 
 export default function Chat() {
-  const [chats, setChats] = useState<Chat[]>([
-    { id: "1", title: "New Conversation", messages: [] },
-  ]);
+  const { isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // initialize model from localStorage (selected on Models page), else default
+  const initialModelId = useMemo(
+    () => loadSelectedModelId() ?? DEFAULT_MODEL_ID,
+    []
+  );
+
+  const [selectedModel, setSelectedModel] = useState<string>(initialModelId);
+  const [chats, setChats] = useState<Chat[]>([{ id: "1", title: "New Conversation", messages: [] }]);
   const [activeChatId, setActiveChatId] = useState("1");
   const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState("gpt-4");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedChats, setSelectedChats] = useState<string[]>([]);
   const [selectedSnippets, setSelectedSnippets] = useState<TextSnippet[]>([]);
 
   const activeChat = chats.find((chat) => chat.id === activeChatId);
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigate("/login", { replace: true });
+    }
+  }, [isAuthenticated, loading, navigate]);
+
+  // if localStorage changed later (rare), keep one-time correction
+  useEffect(() => {
+    const id = loadSelectedModelId();
+    if (id && id !== selectedModel) setSelectedModel(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSend = () => {
     if (!input.trim() || !activeChat) return;
@@ -58,12 +82,11 @@ export default function Chat() {
     setChats(updatedChats);
     setInput("");
 
-    // Simulate AI response
     setTimeout(() => {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `This is a response from ${selectedModel}. Your message: "${input}"`,
+        content: `This is a response from ${selectedModel}. Your message: "${newMessage.content}"`,
         model: selectedModel,
       };
 
@@ -78,33 +101,20 @@ export default function Chat() {
   };
 
   const createNewChat = () => {
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      title: "New Conversation",
-      messages: [],
-    };
-    setChats([...chats, newChat]);
+    const newChat: Chat = { id: Date.now().toString(), title: "New Conversation", messages: [] };
+    setChats((prev) => [...prev, newChat]);
     setActiveChatId(newChat.id);
   };
 
   const mergeSelectedChats = () => {
     if (selectedChats.length < 2) return;
-
     const mergedMessages: Message[] = [];
     selectedChats.forEach((chatId) => {
       const chat = chats.find((c) => c.id === chatId);
-      if (chat) {
-        mergedMessages.push(...chat.messages);
-      }
+      if (chat) mergedMessages.push(...chat.messages);
     });
-
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      title: "Merged Conversation",
-      messages: mergedMessages,
-    };
-
-    setChats([...chats, newChat]);
+    const newChat: Chat = { id: Date.now().toString(), title: "Merged Conversation", messages: mergedMessages };
+    setChats((prev) => [...prev, newChat]);
     setActiveChatId(newChat.id);
     setSelectMode(false);
     setSelectedChats([]);
@@ -113,13 +123,8 @@ export default function Chat() {
   const handleTextSelection = (messageId: string) => {
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim();
-    
-    if (selectedText && selectedText.length > 0) {
-      const newSnippet: TextSnippet = {
-        id: Date.now().toString(),
-        content: selectedText,
-        messageId,
-      };
+    if (selectedText) {
+      const newSnippet: TextSnippet = { id: Date.now().toString(), content: selectedText, messageId };
       setSelectedSnippets((prev) => [...prev, newSnippet]);
       selection?.removeAllRanges();
     }
@@ -129,13 +134,16 @@ export default function Chat() {
     setSelectedSnippets((prev) => prev.filter((s) => s.id !== snippetId));
   };
 
-  const clearAllSnippets = () => {
-    setSelectedSnippets([]);
-  };
+  const clearAllSnippets = () => setSelectedSnippets([]);
+
+  const selectedModelName = useMemo(
+    () => findModel(selectedModel)?.name ?? selectedModel,
+    [selectedModel]
+  );
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      <Navbar isAuthenticated />
+      <Navbar />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
@@ -192,60 +200,59 @@ export default function Chat() {
           </ScrollArea>
         </aside>
 
-        {/* Main Chat Area */}
+        {/* Main */}
         <main className="flex-1 flex flex-col">
           {/* Model Selector */}
           <div className="p-4 border-b border-border flex items-center gap-4">
             <label className="text-sm font-medium">Model:</label>
             <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
+              <SelectTrigger className="w-72">
+                <SelectValue placeholder="Choose a model" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gpt-4">GPT-4</SelectItem>
-                <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
-                <SelectItem value="claude">Claude</SelectItem>
-                <SelectItem value="gemini">Gemini</SelectItem>
+              <SelectContent className="max-h-80">
+                {MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            <span className="text-xs text-muted-foreground">Using: {selectedModelName}</span>
           </div>
 
           {/* Messages */}
           <ScrollArea className="flex-1 p-4">
             <div className="max-w-3xl mx-auto space-y-4">
-              {activeChat?.messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex gap-3 group",
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
+              {chats
+                .find((c) => c.id === activeChatId)
+                ?.messages.map((message) => (
                   <div
-                    className={cn(
-                      "rounded-2xl px-4 py-3 max-w-[80%] relative select-text",
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    )}
-                    onMouseUp={() => handleTextSelection(message.id)}
+                    key={message.id}
+                    className={cn("flex gap-3 group", message.role === "user" ? "justify-end" : "justify-start")}
                   >
-                    <p className="text-sm">{message.content}</p>
-                    {message.model && message.role === "assistant" && (
-                      <p className="text-xs opacity-70 mt-1">via {message.model}</p>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleTextSelection(message.id)}
-                      title="Select text and click to tag"
+                    <div
+                      className={cn(
+                        "rounded-2xl px-4 py-3 max-w-[80%] relative select-text",
+                        message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                      )}
+                      onMouseUp={() => handleTextSelection(message.id)}
                     >
-                      <Scissors className="h-3 w-3" />
-                    </Button>
+                      <p className="text-sm">{message.content}</p>
+                      {message.model && message.role === "assistant" && (
+                        <p className="text-xs opacity-70 mt-1">via {message.model}</p>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleTextSelection(message.id)}
+                        title="Select text and click to tag"
+                      >
+                        <Scissors className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </ScrollArea>
 
@@ -259,12 +266,7 @@ export default function Chat() {
                       <Tag className="h-3 w-3" />
                       Selected text ({selectedSnippets.length})
                     </p>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={clearAllSnippets}
-                      className="h-6 text-xs"
-                    >
+                    <Button size="sm" variant="ghost" onClick={clearAllSnippets} className="h-6 text-xs">
                       Clear all
                     </Button>
                   </div>
@@ -293,11 +295,7 @@ export default function Chat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder={
-                    selectedSnippets.length > 0
-                      ? "Ask about the selected text..."
-                      : "Type your message..."
-                  }
+                  placeholder={selectedSnippets.length > 0 ? "Ask about the selected text..." : "Type your message..."}
                   className="flex-1"
                 />
                 <Button onClick={handleSend} size="icon">

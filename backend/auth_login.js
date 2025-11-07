@@ -44,6 +44,7 @@ module.exports = async function login(req) {
 
       // supabase returns a URL the client should be redirected to
       const url = oauthData?.url || oauthData?.provider_url || null;
+      console.log(`[AUTH] OAuth login initiated for provider ${provider}`);
       return { status: 200, provider, url };
     }
 
@@ -69,6 +70,10 @@ module.exports = async function login(req) {
       : null;
 
     const token = session?.access_token || session?.provider_token || null;
+
+    if (safeUser) {
+      console.log(`[AUTH] Password login successful for ${safeUser.email || safeUser.id || 'unknown user'}`);
+    }
 
     return { status: 200, user: safeUser, token, session: session ? { expires_at: session.expires_at } : null };
   } catch (err) {

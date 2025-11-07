@@ -53,6 +53,19 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
+// Auth: session completion helper for OAuth tokens
+const sessionHandler = require('./auth_session');
+app.post('/api/auth/session', async (req, res) => {
+  try {
+    const result = await sessionHandler(req);
+    const status = result && result.status ? result.status : 200;
+    const { status: _s, ...payload } = result || {};
+    return res.status(status).json(payload);
+  } catch (err) {
+    return res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
 // Auth: logout endpoint - forwards request to auth_logout module
 // curl.exe -i -X POST "http://localhost:3001/api/auth/logout" -H "Content-Type: application/json" -d "{}"
 

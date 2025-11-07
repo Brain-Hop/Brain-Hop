@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { User, Mail } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Profile() {
-  const [email, setEmail] = useState("user@example.com");
-  const [name, setName] = useState("User");
+  const { user, logout } = useAuth();
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    setEmail(user?.email ?? "");
+    const displayName = user?.name || (user?.email ? user.email.split("@")[0] : "");
+    setName(displayName ?? "");
+  }, [user?.email, user?.name]);
 
   const handleSave = () => {
     toast({
@@ -21,23 +29,19 @@ export default function Profile() {
   };
 
   const handleLogout = () => {
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully.",
-    });
-    // TODO: Implement actual logout logic
+    logout();
   };
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <Navbar isAuthenticated />
+      <Navbar />
 
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="text-center space-y-4">
             <Avatar className="h-24 w-24 mx-auto">
               <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                {name.charAt(0)}
+                {name ? name.charAt(0).toUpperCase() : "?"}
               </AvatarFallback>
             </Avatar>
             <h1 className="text-3xl font-bold">Profile Settings</h1>
