@@ -74,6 +74,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [state, setState] = useState<AuthState>(defaultState);
   const [loading, setLoading] = useState(true);
   const hydratedRef = useRef(false);
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL //|| "http://localhost:3001";
 
   const persistState = useCallback((next: AuthState) => {
     setState(next);
@@ -146,7 +147,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const silent = options?.silent ?? false;
 
       try {
-        await fetch(`http://localhost:3001/api/auth/logout`, {
+        await fetch(`${apiBaseUrl}/api/auth/logout`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -196,7 +197,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const finalizeOAuth = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/auth/session`, {
+        const response = await fetch(`${apiBaseUrl}/api/auth/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -250,7 +251,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     finalizeOAuth();
-  }, [loading, setSession, toast]);
+  }, [apiBaseUrl, loading, setSession, toast]);
 
   useEffect(() => {
     if (loading) return;

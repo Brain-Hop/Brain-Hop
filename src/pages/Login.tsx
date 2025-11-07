@@ -12,8 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Navbar } from "@/components/Navbar";
-import { Bot, Loader2 } from "lucide-react";
-import { FcGoogle } from "react-icons/fc"; // <-- Add this for Google icon
+import { Loader2 } from "lucide-react";
+import { FcGoogle } from "react-icons/fc";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 
@@ -25,6 +25,7 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -37,7 +38,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/auth/login`, {
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -48,14 +49,16 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        const expiresAt = data.session?.expires_at ? Number(data.session.expires_at) * 1000 : null;
+        const expiresAt = data.session?.expires_at
+          ? Number(data.session.expires_at) * 1000
+          : null;
         login(
           {
             user: data.user ?? null,
             token: data.token ?? null,
             expiresAt,
           },
-          { redirectTo: "/chat" },
+          { redirectTo: "/chat" }
         );
 
         toast({
@@ -83,7 +86,7 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/auth/login`, {
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "google" }),
@@ -91,7 +94,6 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok && data.url) {
-        // Redirect user to Google OAuth
         window.location.href = data.url;
       } else {
         toast({
@@ -114,12 +116,19 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar />
+
       <div className="container mx-auto px-4 py-16 flex items-center justify-center">
         <Card className="w-full max-w-md shadow-medium">
           <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4">
-              <Bot className="h-6 w-6 text-primary" />
+            {/* --- Replace Bot icon with your Brain Hop logo --- */}
+            <div className="mx-auto h-16 w-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+              <img
+                src="/brain_hop.png"
+                alt="Brain Hop Logo"
+                className="h-12 w-12 object-contain"
+              />
             </div>
+
             <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
             <CardDescription>
               Enter your credentials or continue with Google
@@ -151,9 +160,7 @@ export default function Login() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
