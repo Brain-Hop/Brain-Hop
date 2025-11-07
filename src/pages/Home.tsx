@@ -1,37 +1,48 @@
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { Link } from "react-router-dom";
-import { Bot, MessageSquare, Zap, Shield } from "lucide-react";
+import { MessageSquare, Zap, Shield } from "lucide-react";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar />
-      
+
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-24 text-center">
         <div className="max-w-4xl mx-auto space-y-8">
-          <div className="inline-flex items-center justify-center p-2 bg-primary/10 rounded-full mb-4">
-            <Bot className="h-12 w-12 text-primary" />
+          {/* --- Replace Bot icon with Brain Hop logo --- */}
+          <div className="inline-flex items-center justify-center p-2 bg-primary/10 rounded-full mb-4 overflow-hidden">
+            <img
+              src="/brain_hop.png"
+              alt="Brain Hop Logo"
+              className="h-12 w-12 object-contain"
+            />
           </div>
-          
+
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
             Your AI Assistant
             <span className="block bg-gradient-hero bg-clip-text text-transparent mt-2">
               Powered by Multiple Models
             </span>
           </h1>
-          
+
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Experience seamless conversations with cutting-edge AI models. Switch between models, 
-            merge conversations, and get intelligent responses tailored to your needs.
+            Experience seamless conversations with cutting-edge AI models. Switch
+            between models, merge conversations, and get intelligent responses
+            tailored to your needs.
           </p>
-          
+
           <div className="flex gap-4 justify-center pt-4">
             <Button size="lg" asChild className="text-lg px-8">
               <Link to="/signup">Get Started</Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="text-lg px-8">
+            <Button
+              size="lg"
+              variant="outline"
+              asChild
+              className="text-lg px-8"
+            >
               <Link to="/login">Sign In</Link>
             </Button>
           </div>
@@ -47,8 +58,8 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold mb-3">Smart Conversations</h3>
             <p className="text-muted-foreground">
-              Engage in intelligent conversations with context-aware AI that remembers 
-              your chat history and preferences.
+              Engage in intelligent conversations with context-aware AI that
+              remembers your chat history and preferences.
             </p>
           </div>
 
@@ -58,7 +69,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold mb-3">Multiple Models</h3>
             <p className="text-muted-foreground">
-              Switch between different AI models mid-conversation to get the best 
+              Switch between different AI models mid-conversation to get the best
               response for each task.
             </p>
           </div>
@@ -69,7 +80,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold mb-3">Secure & Private</h3>
             <p className="text-muted-foreground">
-              Your conversations are encrypted and stored securely. We prioritize 
+              Your conversations are encrypted and stored securely. We prioritize
               your privacy and data protection.
             </p>
           </div>
@@ -83,7 +94,8 @@ export default function Home() {
             Ready to get started?
           </h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join thousands of users who are already experiencing the power of AI-assisted conversations.
+            Join thousands of users who are already experiencing the power of
+            AI-assisted conversations.
           </p>
           <Button size="lg" asChild className="text-lg px-8">
             <Link to="/signup">Create Account</Link>

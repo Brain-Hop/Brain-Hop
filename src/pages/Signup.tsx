@@ -12,7 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Navbar } from "@/components/Navbar";
-import { Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 
@@ -24,6 +23,7 @@ export default function Signup() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -46,8 +46,7 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      // use environment variable for dynamic backend URL
-      const response = await fetch(`http://localhost:3001/api/auth/signup`, {
+      const response = await fetch(`${apiBaseUrl}/api/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -64,7 +63,6 @@ export default function Signup() {
             "Please check your email for confirmation (if required).",
         });
 
-        // Redirect to login or chat after signup
         setTimeout(() => {
           navigate("/login");
         }, 1000);
@@ -75,7 +73,7 @@ export default function Signup() {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Network Error",
         description: "Unable to connect to the server. Please try again later.",
@@ -93,9 +91,15 @@ export default function Signup() {
       <div className="container mx-auto px-4 py-16 flex items-center justify-center">
         <Card className="w-full max-w-md shadow-medium">
           <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4">
-              <Bot className="h-6 w-6 text-primary" />
+            {/* --- Replace Bot icon with your Brain Hop logo --- */}
+            <div className="mx-auto h-16 w-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+              <img
+                src="/brain_hop.png"
+                alt="Brain Hop Logo"
+                className="h-12 w-12 object-contain"
+              />
             </div>
+
             <CardTitle className="text-2xl font-bold">
               Create an account
             </CardTitle>
@@ -103,6 +107,7 @@ export default function Signup() {
               Enter your details to get started with AI Chat
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -116,6 +121,7 @@ export default function Signup() {
                   required
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -126,6 +132,7 @@ export default function Signup() {
                   required
                 />
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">Confirm Password</Label>
                 <Input
@@ -136,11 +143,13 @@ export default function Signup() {
                   required
                 />
               </div>
+
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
           </CardContent>
+
           <CardFooter className="flex flex-col space-y-2">
             <div className="text-sm text-muted-foreground text-center">
               Already have an account?{" "}
