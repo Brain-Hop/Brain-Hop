@@ -147,6 +147,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const silent = options?.silent ?? false;
 
       try {
+        // Sync chats to Supabase before logging out
+        if (state.user?.id && state.token) {
+          const { syncChatsToSupabase } = await import('@/utils/chatSync');
+          await syncChatsToSupabase(state.user.id, state.token, apiBaseUrl);
+        }
+
         await fetch(`${apiBaseUrl}/api/auth/logout`, {
           method: "POST",
           headers: {
@@ -175,7 +181,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         navigate(redirectTo, { replace: true });
       }
     },
-    [navigate, persistState, state.token, toast],
+    [navigate, persistState, state.token, state.user?.id, toast, apiBaseUrl],
   );
 
   useEffect(() => {

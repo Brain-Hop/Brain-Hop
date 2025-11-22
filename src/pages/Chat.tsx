@@ -52,9 +52,7 @@ type PendingImage = {
 };
 
 const LS_KEY = "chat_state_v4_single_image";
-
-// ====== CONSTANT USER ID (for now) ======
-const USER_ID = "1000";
+const LS_SUPABASE_CHATS_KEY = "supabase_chats_pending_sync"; // Chats in Supabase format waiting to be synced
 
 // ---- helpers ----
 function safeParse<T>(v: string | null, fallback: T): T {
@@ -70,10 +68,13 @@ function newId() {
 }
 
 export default function Chat() {
-  const { isAuthenticated, loading, token } = useAuth();
+  const { isAuthenticated, loading, token, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  
+  // Get user ID from auth context
+  const userId = user?.id || null;
 
   // ===== model selection =====
   const initialModelId = useMemo(() => loadSelectedModelId() ?? DEFAULT_MODEL_ID, []);
@@ -156,6 +157,54 @@ export default function Chat() {
       },
     });
 
+  // ===== save chat to localStorage in Supabase format =====
+  const saveChatToLocalStorage = (chatId: string, title: string, messages: Message[]) => {
+    if (!userId) {
+      console.warn('[CHAT] Cannot save chat: user not authenticated');
+      return;
+    }
+
+    try {
+      // Get existing pending chats from localStorage
+      const existingPending = safeParse<Record<string, any>>(
+        window.localStorage.getItem(LS_SUPABASE_CHATS_KEY),
+        {}
+      );
+
+      // Create chat record in Supabase format
+      const now = new Date().toISOString();
+      const chatRecord = {
+        chat_id: chatId,
+        user_id: userId,
+        title: title,
+        zip_file_url: '', // Empty string for NOT NULL constraint
+        vector_count: 0,
+        chat: messages, // Store messages as JSON
+        created_at: existingPending[chatId]?.created_at || now,
+        updated_at: now,
+      };
+
+      // Save to pending sync
+      existingPending[chatId] = chatRecord;
+      window.localStorage.setItem(LS_SUPABASE_CHATS_KEY, JSON.stringify(existingPending));
+      
+      console.log(`[CHAT] Saved chat ${chatId} to localStorage (pending sync)`);
+    } catch (err) {
+      console.error('[CHAT] Failed to save chat to localStorage:', err);
+    }
+  };
+
+  // ===== sync all chats from localStorage to Supabase =====
+  const syncChatsToSupabase = async (): Promise<boolean> => {
+    if (!userId || !token) {
+      console.warn('[CHAT] Cannot sync: user not authenticated');
+      return false;
+    }
+
+    const { syncChatsToSupabase: syncFn } = await import('@/utils/chatSync');
+    return await syncFn(userId, token, apiBaseUrl);
+  };
+
   // ===== image handling (single) =====
   const onPickImage = () => fileInputRef.current?.click();
 
@@ -190,8 +239,8 @@ export default function Chat() {
   const clearPendingImage = () => setPendingImage(null);
 
   // upload pending image to /api/rag/image -> returns image_name
-  const uploadPendingImage = async (userId: string, chatId: string): Promise<string | null> => {
-    if (!pendingImage) return null;
+  const uploadPendingImage = async (chatId: string): Promise<string | null> => {
+    if (!pendingImage || !userId) return null;
 
     // convert dataUrl back to Blob
     const toBlob = async (dataUrl: string) => {
@@ -241,8 +290,8 @@ export default function Chat() {
     };
 
     // set title from FIRST user message
-    setChats((prev) =>
-      prev.map((c) =>
+    setChats((prev) => {
+      const updated = prev.map((c) =>
         c.id === activeChatId
           ? {
               ...c,
@@ -253,16 +302,31 @@ export default function Chat() {
               messages: [...c.messages, userMsg],
             }
           : c
-      )
-    );
+      );
+      const updatedChat = updated.find((c) => c.id === activeChatId);
+      // Save chat to localStorage (will sync to Supabase on logout/close)
+      if (updatedChat) {
+        saveChatToLocalStorage(activeChatId, updatedChat.title, updatedChat.messages);
+      }
+      return updated;
+    });
 
     setInput("");
+
+    if (!userId) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to send messages.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       // 1) upload image (if any) to Supabase via Node -> receive image_name
       let image_name: string | null = null;
       if (pendingImage) {
-        image_name = await uploadPendingImage(USER_ID, activeChatId);
+        image_name = await uploadPendingImage(activeChatId);
         // only clear the local preview after a successful upload
         setPendingImage(null);
       }
@@ -272,7 +336,7 @@ export default function Chat() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: USER_ID,
+          user_id: userId,
           chat_id: activeChatId,
           model_name: selectedModel,
           question: finalQuestion,
@@ -292,9 +356,15 @@ export default function Chat() {
         model: selectedModel,
       };
 
-      setChats((prev) =>
-        prev.map((c) => (c.id === activeChatId ? { ...c, messages: [...c.messages, aiMsg] } : c))
-      );
+      setChats((prev) => {
+        const updated = prev.map((c) => (c.id === activeChatId ? { ...c, messages: [...c.messages, aiMsg] } : c));
+        const updatedChat = updated.find((c) => c.id === activeChatId);
+        // Save chat to localStorage (will sync to Supabase on logout/close)
+        if (updatedChat) {
+          saveChatToLocalStorage(activeChatId, updatedChat.title, updatedChat.messages);
+        }
+        return updated;
+      });
     } catch (err: any) {
       console.error("RAG chat error:", err);
       toast({
@@ -321,10 +391,21 @@ export default function Chat() {
 
   // ===== new chat =====
   const createNewChat = () => {
+    if (!userId) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create a new chat.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const id = newId();
     const newChat: Chat = { id, title: "New Conversation", messages: [] };
     setChats((prev) => [...prev, newChat]);
-    setActiveChatId(newChat.id);
+    setActiveChatId(id);
+    // Save new chat to localStorage (will sync to Supabase on logout/close)
+    saveChatToLocalStorage(id, newChat.title, newChat.messages);
   };
 
   // ===== merge chats =====
@@ -334,11 +415,20 @@ export default function Chat() {
     const newChatId = newId();
 
     try {
+      if (!userId) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to merge chats.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const res = await apiFetch(`/api/rag/merge_chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: USER_ID,
+          user_id: userId,
           new_chat_id: newChatId,
           merge_chat_ids: selectedChats,
         }),
@@ -359,6 +449,8 @@ export default function Chat() {
       setActiveChatId(newChatId);
       setSelectMode(false);
       setSelectedChats([]);
+      // Save merged chat to localStorage (will sync to Supabase on logout/close)
+      saveChatToLocalStorage(newChatId, mergedChat.title, mergedChat.messages);
       toast({ title: "Merged", description: `Created chat ${newChatId} from ${selectedChats.length} chats.` });
     } catch (err: any) {
       console.error("Merge error:", err);
@@ -386,21 +478,66 @@ export default function Chat() {
     [selectedModel]
   );
 
-  // ===== persist vector store on unload =====
+  // ===== sync chats to Supabase on page unload/visibility change =====
   useEffect(() => {
-    const onUnload = () => {
-      try {
-        const url = `${apiBaseUrl}/api/rag/close_chat`;
-        const payload = JSON.stringify({ user_id: USER_ID, chat_id: activeChatId });
-        const blob = new Blob([payload], { type: "application/json" });
-        navigator.sendBeacon(url, blob);
-      } catch {
-        // ignore
+    if (!userId || !token) return;
+    
+    // Sync on visibility change (more reliable than beforeunload)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Page is being hidden, sync chats
+        syncChatsToSupabase().catch(err => {
+          console.error('[CHAT] Sync on visibility change failed:', err);
+        });
       }
     };
+
+    // Also sync on beforeunload as backup
+    const onUnload = () => {
+      // Use fetch with keepalive for reliable delivery with auth headers
+      const pendingChats = safeParse<Record<string, any>>(
+        window.localStorage.getItem(LS_SUPABASE_CHATS_KEY),
+        {}
+      );
+      const chatArray = Object.values(pendingChats);
+      
+      if (chatArray.length > 0) {
+        // Use fetch with keepalive flag (more reliable than sendBeacon for auth)
+        fetch(`${apiBaseUrl}/api/chats/sync`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ chats: chatArray }),
+          keepalive: true, // Ensures request completes even if page closes
+        }).catch(() => {
+          // Ignore errors on unload
+        });
+      }
+      
+      // Also close the active chat in RAG service
+      fetch(`${apiBaseUrl}/api/rag/close_chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ user_id: userId, chat_id: activeChatId }),
+        keepalive: true,
+      }).catch(() => {
+        // Ignore errors on unload
+      });
+    };
+    
+    document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("beforeunload", onUnload);
-    return () => window.removeEventListener("beforeunload", onUnload);
-  }, [apiBaseUrl, activeChatId]);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("beforeunload", onUnload);
+    };
+  }, [apiBaseUrl, activeChatId, userId, token]);
 
   return (
     <div className="h-screen flex flex-col bg-background">

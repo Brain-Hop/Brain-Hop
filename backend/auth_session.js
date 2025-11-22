@@ -8,6 +8,7 @@ module.exports = async function session(req) {
 
   try {
     const { supabase } = require('./supabase');
+    const { upsertProfile } = require('./profile_helpers');
 
     const { data, error } = await supabase.auth.getUser(accessToken);
     if (error) {
@@ -27,6 +28,20 @@ module.exports = async function session(req) {
       console.log(
         `[AUTH] OAuth login completed for ${safeUser.email || safeUser.id || 'unknown user'} via Google`,
       );
+      
+      // Create or update profile entry in profiles table
+      if (safeUser.id) {
+        const profileResult = await upsertProfile(supabase, safeUser.id, {
+          email: user.email,
+          name: user.user_metadata?.name || null,
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+          user_metadata: user.user_metadata,
+        });
+        if (profileResult.error) {
+          console.warn('[AUTH] Profile update warning:', profileResult.error);
+          // Don't fail login if profile update fails, but log it
+        }
+      }
     } else {
       console.log('[AUTH] OAuth login completed with missing user details');
     }

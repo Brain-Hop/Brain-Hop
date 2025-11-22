@@ -278,6 +278,108 @@ app.post('/api/rag/merge_chats', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/chats/save
+ * Body: { user_id, chat_id?, title, zip_file_url?, vector_count?, chat? }
+ * Creates or updates a chat in the chats table
+ */
+app.post('/api/chats/save', async (req, res) => {
+  try {
+    const { user_id, chat_id, title, zip_file_url, vector_count, chat } = req.body || {};
+    
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const { upsertChat } = require('./chat_helpers');
+    const result = await upsertChat(supabase, user_id, chat_id, {
+      title: title || 'New Conversation',
+      zip_file_url: zip_file_url || '',
+      vector_count: vector_count || 0,
+      chat: chat || null,
+    });
+
+    if (result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    return res.status(200).json({ 
+      chat_id: result.chat_id,
+      chat: result.data 
+    });
+  } catch (err) {
+    console.error('[CHAT] /api/chats/save error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to save chat' });
+  }
+});
+
+/**
+ * POST /api/chats/sync
+ * Body: { chats: Array<chatRecord> }
+ * Batch syncs multiple chats to Supabase (upsert for each)
+ */
+app.post('/api/chats/sync', async (req, res) => {
+  try {
+    const { chats } = req.body || {};
+    
+    if (!Array.isArray(chats)) {
+      return res.status(400).json({ error: 'chats must be an array' });
+    }
+
+    if (chats.length === 0) {
+      return res.status(200).json({ message: 'No chats to sync', synced: 0 });
+    }
+
+    console.log(`[CHAT SYNC] Syncing ${chats.length} chats to Supabase...`);
+
+    const { upsertChat } = require('./chat_helpers');
+    const results = [];
+    const errors = [];
+
+    // Process each chat
+    for (const chatRecord of chats) {
+      const { chat_id, user_id, title, zip_file_url, vector_count, chat } = chatRecord;
+      
+      if (!user_id || !chat_id) {
+        errors.push({ chat_id: chat_id || 'unknown', error: 'Missing user_id or chat_id' });
+        continue;
+      }
+
+      const result = await upsertChat(supabase, user_id, chat_id, {
+        title: title || 'New Conversation',
+        zip_file_url: zip_file_url || '',
+        vector_count: vector_count || 0,
+        chat: chat || null,
+      });
+
+      if (result.error) {
+        errors.push({ chat_id, error: result.error });
+      } else {
+        results.push({ chat_id, success: true });
+      }
+    }
+
+    const synced = results.length;
+    const failed = errors.length;
+
+    console.log(`[CHAT SYNC] Completed: ${synced} synced, ${failed} failed`);
+
+    if (failed > 0) {
+      console.error('[CHAT SYNC] Errors:', errors);
+    }
+
+    return res.status(200).json({
+      message: `Synced ${synced} chats${failed > 0 ? `, ${failed} failed` : ''}`,
+      synced,
+      failed,
+      errors: failed > 0 ? errors : undefined,
+    });
+  } catch (err) {
+    console.error('[CHAT SYNC] /api/chats/sync error:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to sync chats' });
+  }
+});
+
 // -------------------- START SERVER --------------------
 app.listen(port, () => {
   console.log(`✅ Server is running on http://localhost:${port}`);
