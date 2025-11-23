@@ -21,6 +21,7 @@ module.exports = async function signup(req) {
 
   try {
     const { supabase } = require('./supabase');
+    const { upsertProfile } = require('./profile_helpers');
 
     // Call signUp without user metadata (we don't accept name)
     const result = await supabase.auth.signUp({ email, password });
@@ -38,6 +39,19 @@ module.exports = async function signup(req) {
           created_at: user.created_at || null,
         }
       : null;
+
+    // Create profile entry in profiles table
+    if (safeUser?.id) {
+      const profileResult = await upsertProfile(supabase, safeUser.id, {
+        email: safeUser.email,
+        name: user.user_metadata?.name || null,
+        avatar_url: user.user_metadata?.avatar_url || null,
+      });
+      if (profileResult.error) {
+        console.warn('[AUTH] Profile creation warning:', profileResult.error);
+        // Don't fail signup if profile creation fails, but log it
+      }
+    }
 
     return { status: 201, user: safeUser, meta: { confirmation_sent_at: data?.confirmation_sent_at } };
   } catch (err) {

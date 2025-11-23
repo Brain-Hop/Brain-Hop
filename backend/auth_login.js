@@ -73,6 +73,21 @@ module.exports = async function login(req) {
 
     if (safeUser) {
       console.log(`[AUTH] Password login successful for ${safeUser.email || safeUser.id || 'unknown user'}`);
+      
+      // Create or update profile entry in profiles table
+      const { upsertProfile } = require('./profile_helpers');
+      if (safeUser.id) {
+        const profileResult = await upsertProfile(supabase, safeUser.id, {
+          email: user.email,
+          name: user.user_metadata?.name || null,
+          avatar_url: user.user_metadata?.avatar_url || null,
+          user_metadata: user.user_metadata,
+        });
+        if (profileResult.error) {
+          console.warn('[AUTH] Profile update warning:', profileResult.error);
+          // Don't fail login if profile update fails, but log it
+        }
+      }
     }
 
     return { status: 200, user: safeUser, token, session: session ? { expires_at: session.expires_at } : null };
