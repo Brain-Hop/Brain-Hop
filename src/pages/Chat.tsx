@@ -1,5 +1,5 @@
-// src/pages/Chat.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FloatingTextMenu } from "@/components/FloatingTextMenu";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -89,6 +89,14 @@ export default function Chat() {
   const [selectedChats, setSelectedChats] = useState<string[]>([]);
   const [selectedSnippets, setSelectedSnippets] = useState<TextSnippet[]>([]);
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null); // SINGLE image
+  // Floating menu state
+  const [selectionMenu, setSelectionMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    text: string;
+    messageId: string;
+  }>({ visible: false, x: 0, y: 0, text: "", messageId: "" });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const hydratedRef = useRef(false);
@@ -459,13 +467,43 @@ export default function Chat() {
   };
 
   // ===== snippets =====
-  const handleTextSelection = (messageId: string) => {
+  const handleSelectionChange = (messageId: string, event: React.MouseEvent) => {
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim();
+
     if (selectedText) {
-      const newSnippet: TextSnippet = { id: newId(), content: selectedText, messageId };
+      // Calculate position for the floating menu
+      // We use the event client coordinates as a fallback, but try to use range rect
+      const range = selection?.getRangeAt(0);
+      const rect = range?.getBoundingClientRect();
+      
+      if (rect) {
+        setSelectionMenu({
+          visible: true,
+          x: rect.left + rect.width / 2,
+          y: rect.top,
+          text: selectedText,
+          messageId: messageId
+        });
+      }
+    } else {
+       // logic to hide if needed, but usually clicking elsewhere handles it via the menu's outside click
+       // actually, simply selecting nothing should probably stay as is until they click away
+    }
+  };
+
+  const handleAsk = () => {
+    if (selectionMenu.text) {
+      const newSnippet: TextSnippet = { 
+        id: newId(), 
+        content: selectionMenu.text, 
+        messageId: selectionMenu.messageId 
+      };
       setSelectedSnippets((prev) => [...prev, newSnippet]);
-      selection?.removeAllRanges();
+      
+      // Clear selection and menu
+      window.getSelection()?.removeAllRanges();
+      setSelectionMenu(prev => ({ ...prev, visible: false }));
     }
   };
 
@@ -629,7 +667,7 @@ export default function Chat() {
                       "rounded-2xl px-4 py-3 max-w-[80%] relative select-text",
                       message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                     )}
-                    onMouseUp={() => handleTextSelection(message.id)}
+                    onMouseUp={(e) => handleSelectionChange(message.id, e)}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
 
@@ -645,18 +683,17 @@ export default function Chat() {
                     {message.model && message.role === "assistant" && (
                       <p className="text-xs opacity-70 mt-1">via {message.model}</p>
                     )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleTextSelection(message.id)}
-                      title="Select text and click to tag"
-                    >
-                      <Scissors className="h-3 w-3" />
-                    </Button>
+
                   </div>
                 </div>
               ))}
+              
+              <FloatingTextMenu 
+                visible={selectionMenu.visible}
+                position={selectionMenu.visible ? { x: selectionMenu.x, y: selectionMenu.y } : null}
+                onAsk={handleAsk}
+                onClose={() => setSelectionMenu(prev => ({ ...prev, visible: false }))}
+              />
             </div>
           </ScrollArea>
 
@@ -680,6 +717,37 @@ export default function Chat() {
                       {pendingImage.name}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Selected Snippets */}
+              {selectedSnippets.length > 0 && (
+                <div className="flex flex-wrap gap-2 pb-2">
+                  {selectedSnippets.map((snippet) => (
+                    <div
+                      key={snippet.id}
+                      className="flex items-center gap-2 bg-muted/50 border border-border rounded-md px-2 py-1 text-xs"
+                    >
+                      <Tag className="h-3 w-3 text-muted-foreground" />
+                      <span className="max-w-[200px] truncate">{snippet.content}</span>
+                      <button
+                        onClick={() => removeSnippet(snippet.id)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {selectedSnippets.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllSnippets}
+                      className="h-6 text-xs text-muted-foreground"
+                    >
+                      Clear all
+                    </Button>
+                  )}
                 </div>
               )}
 
