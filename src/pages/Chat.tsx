@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { FloatingTextMenu } from "@/components/FloatingTextMenu";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
@@ -320,6 +321,7 @@ export default function Chat() {
     });
 
     setInput("");
+    setSelectedSnippets([]);
 
     if (!userId) {
       toast({
@@ -669,7 +671,11 @@ export default function Chat() {
                     )}
                     onMouseUp={(e) => handleSelectionChange(message.id, e)}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <div className="prose prose-sm dark:prose-invert max-w-none break-words text-sm">
+                      <ReactMarkdown>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
 
                     {/* render single image if present */}
                     {message.image && (
