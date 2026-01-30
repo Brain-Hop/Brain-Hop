@@ -64,5 +64,36 @@ export async function syncChatsToSupabase(
     console.error('[CHAT SYNC] Failed to sync chats to Supabase:', err);
     return false;
   }
+  }
+
+
+export async function fetchChatsFromSupabase(
+  userId: string | null,
+  token: string | null,
+  apiBaseUrl: string
+): Promise<any[]> {
+  if (!userId || !token) {
+    return [];
+  }
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/chats?user_id=${userId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.chats || [];
+    } else {
+      console.warn('[CHAT SYNC] Failed to fetch chats:', response.status);
+      return [];
+    }
+  } catch (err) {
+    console.error('[CHAT SYNC] Error fetching chats:', err);
+    return [];
+  }
 }
+
 
