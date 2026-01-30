@@ -42,6 +42,8 @@ export default function Login() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          // Bypass Ngrok free tier warning page
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify({ email, password }),
       });
