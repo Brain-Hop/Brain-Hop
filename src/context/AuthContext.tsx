@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [state, setState] = useState<AuthState>(defaultState);
   const [loading, setLoading] = useState(true);
   const hydratedRef = useRef(false);
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL //|| "http://localhost:3001";
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
   const persistState = useCallback((next: AuthState) => {
     setState(next);
@@ -157,6 +157,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "true",
             ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
           },
         });
@@ -205,7 +206,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         const response = await fetch(`${apiBaseUrl}/api/auth/session`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "true",
+          },
           body: JSON.stringify({
             access_token: oauthData.accessToken,
             refresh_token: oauthData.refreshToken,
