@@ -137,6 +137,52 @@ export default function Chat() {
     setPendingImage(cached.pendingImage ?? null);
   }, [initialChatId, initialModelId]);
 
+  // ===== fetch chats from Supabase on login/mount =====
+  useEffect(() => {
+    if (!userId || !token) return;
+
+    const loadRemoteChats = async () => {
+      try {
+        const { fetchChatsFromSupabase } = await import('@/utils/chatSync');
+        const remoteChats = await fetchChatsFromSupabase(userId, token, apiBaseUrl);
+        
+        if (remoteChats && remoteChats.length > 0) {
+          setChats(prev => {
+            // Merge remote chats with local chats
+            // If ID exists locally, keep local (it might have unsaved changes)
+            // If ID doesn't exist locally, add remote
+            const localMap = new Map(prev.map(c => [c.id, c]));
+            
+            // Format remote chats to match Chat interface
+            const formattedRemote: Chat[] = remoteChats.map((rc: any) => ({
+              id: rc.chat_id,
+              title: rc.title,
+              messages: typeof rc.chat === 'string' ? JSON.parse(rc.chat) : (rc.chat || []),
+            }));
+
+            // Identify NEW chats from remote
+            let hasNew = false;
+            formattedRemote.forEach(rc => {
+              if (!localMap.has(rc.id)) {
+                localMap.set(rc.id, rc);
+                hasNew = true;
+              }
+            });
+
+            if (!hasNew) return prev;
+            
+            // Convert back to array
+            return Array.from(localMap.values());
+          });
+        }
+      } catch (err) {
+        console.error('[CHAT] Failed to load remote chats:', err);
+      }
+    };
+
+    loadRemoteChats();
+  }, [userId, token, apiBaseUrl]);
+
   // ===== persist to localStorage =====
   useEffect(() => {
     const snapshot = JSON.stringify({
