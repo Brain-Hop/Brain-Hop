@@ -449,9 +449,18 @@ export default function Chat() {
 
       // locally merge for UX continuity
       const mergedMessages: Message[] = [];
+      const seenMsgIds = new Set<string>();
+
       selectedChats.forEach((cid) => {
         const chat = chats.find((c) => c.id === cid);
-        if (chat) mergedMessages.push(...chat.messages);
+        if (chat) {
+          for (const msg of chat.messages) {
+            if (!seenMsgIds.has(msg.id)) {
+              mergedMessages.push(msg);
+              seenMsgIds.add(msg.id);
+            }
+          }
+        }
       });
       const mergedChat: Chat = { id: newChatId, title: "Merged Conversation", messages: mergedMessages };
 
