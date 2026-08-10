@@ -87,7 +87,7 @@ Create a `.env` file in the root directory. You can use `.env.example` as a temp
 # .env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_URL=http://localhost:3001 # Points to your local backend
+VITE_API_BASE_URL=http://localhost:3001 # Points to your local backend
 ```
 
 ### 3️⃣ Run Development Server

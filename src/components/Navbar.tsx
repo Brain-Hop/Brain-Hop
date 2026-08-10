@@ -11,14 +11,14 @@ export function Navbar() {
   const isOnChat = location.pathname === "/chat";
 
   return (
-    <nav className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* --- Brand / Logo --- */}
         <Link
           to={brandHref}
-          className="flex items-center gap-2 font-semibold text-lg group"
+          className="flex items-center gap-3 font-semibold text-lg group"
         >
-          <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center overflow-hidden">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 ring-1 ring-primary/10 flex items-center justify-center overflow-hidden">
   <img
     src="/brain_hop.png"
     alt="Brain Hop Logo"
@@ -26,11 +26,11 @@ export function Navbar() {
   />
 </div>
 
-          <span className="text-foreground">Brain Hop</span>
+          <span className="text-foreground tracking-[-.03em]">Brain Hop</span>
         </Link>
 
         {/* --- Right side buttons --- */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <ThemeToggle />
 
           {!isAuthenticated ? (

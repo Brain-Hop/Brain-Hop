@@ -14,9 +14,9 @@ import {
   CheckSquare,
   Tag,
   X,
-  Scissors,
   Image as ImageIcon,
   Trash2,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -90,6 +90,8 @@ export default function Chat() {
   const [selectedChats, setSelectedChats] = useState<string[]>([]);
   const [selectedSnippets, setSelectedSnippets] = useState<TextSnippet[]>([]);
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null); // SINGLE image
+  const [isResponding, setIsResponding] = useState(false);
+  const [chatMenuId, setChatMenuId] = useState<string | null>(null);
   // Floating menu state
   const [selectionMenu, setSelectionMenu] = useState<{
     visible: boolean;
@@ -101,8 +103,14 @@ export default function Chat() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const hydratedRef = useRef(false);
+  const syncQueueRef = useRef<Promise<boolean>>(Promise.resolve(true));
+  const latestMessageRef = useRef<HTMLDivElement | null>(null);
 
   const activeChat = chats.find((c) => c.id === activeChatId);
+
+  useEffect(() => {
+    latestMessageRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [activeChatId, activeChat?.messages.length]);
 
   // ===== auth guard =====
   useEffect(() => {
@@ -260,6 +268,23 @@ export default function Chat() {
     return await syncFn(userId, token, apiBaseUrl);
   };
 
+  const queueBackgroundSync = (notifyOnFailure = false) => {
+    syncQueueRef.current = syncQueueRef.current
+      .catch(() => false)
+      .then(() => syncChatsToSupabase())
+      .then((synced) => {
+        if (!synced && notifyOnFailure) {
+          toast({
+            title: "Chat saved locally",
+            description: "We could not save it to your workspace. Please try again in a moment.",
+            variant: "destructive",
+          });
+        }
+        return synced;
+      });
+    return syncQueueRef.current;
+  };
+
   // ===== image handling (single) =====
   const onPickImage = () => fileInputRef.current?.click();
 
@@ -325,6 +350,7 @@ export default function Chat() {
 
   // ===== send message =====
   const handleSend = async () => {
+    if (isResponding) return;
     if (!activeChat) return;
     if (!input.trim() && !pendingImage) return;
 
@@ -366,6 +392,7 @@ export default function Chat() {
       return updated;
     });
 
+    setIsResponding(true);
     setInput("");
     setSelectedSnippets([]);
 
@@ -375,8 +402,11 @@ export default function Chat() {
         description: "Please log in to send messages.",
         variant: "destructive",
       });
+      setIsResponding(false);
       return;
     }
+
+    window.setTimeout(() => { void queueBackgroundSync(false); }, 0);
 
     try {
       // 1) upload image (if any) to Supabase via Node -> receive image_name
@@ -421,6 +451,7 @@ export default function Chat() {
         }
         return updated;
       });
+      window.setTimeout(() => { void queueBackgroundSync(true); }, 0);
     } catch (err: any) {
       console.error("RAG chat error:", err);
       toast({
@@ -441,7 +472,10 @@ export default function Chat() {
             : c
         )
       );
+      window.setTimeout(() => { void queueBackgroundSync(true); }, 0);
       // keep pendingImage as-is so user can retry
+    } finally {
+      setIsResponding(false);
     }
   };
 
@@ -462,6 +496,35 @@ export default function Chat() {
     setActiveChatId(id);
     // Save new chat to localStorage (will sync to Supabase on logout/close)
     saveChatToLocalStorage(id, newChat.title, newChat.messages);
+  };
+
+  const deleteChat = async (chatId: string) => {
+    if (!window.confirm("Delete this chat and its saved memory? This cannot be undone.")) return;
+
+    try {
+      const response = await apiFetch(`/api/chats/${chatId}`, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Unable to delete this chat");
+
+      setChats((previous) => {
+        const remaining = previous.filter((chat) => chat.id !== chatId);
+        if (remaining.length > 0) {
+          if (activeChatId === chatId) setActiveChatId(remaining[0].id);
+          return remaining;
+        }
+        const replacement = { id: newId(), title: "New Conversation", messages: [] };
+        setActiveChatId(replacement.id);
+        return [replacement];
+      });
+
+      const pending = safeParse<Record<string, unknown>>(window.localStorage.getItem(LS_SUPABASE_CHATS_KEY), {});
+      delete pending[chatId];
+      window.localStorage.setItem(LS_SUPABASE_CHATS_KEY, JSON.stringify(pending));
+      toast({ title: "Chat deleted", description: "Its conversation and saved memory were removed." });
+    } catch (error) {
+      console.error("Chat deletion failed:", error);
+      toast({ title: "Could not delete chat", description: "Please try again in a moment.", variant: "destructive" });
+    }
   };
 
   // ===== merge chats =====
@@ -635,28 +698,29 @@ export default function Chat() {
   }, [apiBaseUrl, activeChatId, userId, token]);
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-gradient-subtle">
       <Navbar />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-64 border-r border-border bg-card flex flex-col">
+        <aside className="w-72 border-r border-border bg-card/80 backdrop-blur flex flex-col">
           <div className="p-4 border-b border-border space-y-2">
-            <Button onClick={createNewChat} className="w-full justify-start" variant="outline">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-[.16em] text-muted-foreground">Thought paths</p>
+            <Button onClick={createNewChat} className="w-full justify-start rounded-xl" variant="outline" disabled={isResponding}>
               <Plus className="h-4 w-4 mr-2" />
               New Chat
             </Button>
             <Button
               onClick={() => setSelectMode(!selectMode)}
               variant={selectMode ? "default" : "outline"}
-              className="w-full justify-start"
+              className="w-full justify-start rounded-xl"
             >
               <CheckSquare className="h-4 w-4 mr-2" />
               {selectMode ? "Done Selecting" : "Select Chats"}
             </Button>
             {selectMode && selectedChats.length >= 2 && (
-              <Button onClick={mergeSelectedChats} className="w-full" size="sm">
-                Merge Selected ({selectedChats.length})
+              <Button onClick={mergeSelectedChats} className="w-full rounded-xl" size="sm">
+                Connect selected ({selectedChats.length})
               </Button>
             )}
           </div>
@@ -664,28 +728,37 @@ export default function Chat() {
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-1">
               {chats.map((chat) => (
-                <button
-                  key={chat.id}
-                  onClick={() => {
-                    if (selectMode) {
-                      setSelectedChats((prev) =>
-                        prev.includes(chat.id) ? prev.filter((id) => id !== chat.id) : [...prev, chat.id]
-                      );
-                    } else {
-                      setActiveChatId(chat.id);
-                    }
-                  }}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2",
-                    activeChatId === chat.id && !selectMode
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted",
-                    selectMode && selectedChats.includes(chat.id) && "bg-primary/20"
+                <div key={chat.id} className={cn(
+                  "group relative flex items-center gap-1 rounded-xl border border-transparent transition-colors",
+                  activeChatId === chat.id && !selectMode ? "bg-primary text-primary-foreground shadow-soft" : "hover:bg-muted hover:border-border",
+                  selectMode && selectedChats.includes(chat.id) && "bg-accent/30 border-accent"
+                )}>
+                  <button
+                    onClick={() => {
+                      if (selectMode) setSelectedChats((prev) => prev.includes(chat.id) ? prev.filter((id) => id !== chat.id) : [...prev, chat.id]);
+                      else setActiveChatId(chat.id);
+                    }}
+                    className="min-w-0 flex-1 text-left px-3 py-2.5 text-sm flex items-center gap-2"
+                  >
+                    <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{chat.title}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); setChatMenuId((current) => current === chat.id ? null : chat.id); }}
+                    className="mr-3 flex h-8 w-5 shrink-0 items-center justify-center bg-transparent text-sm font-bold tracking-[.08em] text-current/70 hover:text-current"
+                    aria-label={`Options for ${chat.title}`}
+                  >•••</button>
+                  {chatMenuId === chat.id && (
+                    <div className="absolute right-2 top-10 z-50 w-36 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-medium">
+                      <button
+                        type="button"
+                        onClick={() => { setChatMenuId(null); void deleteChat(chat.id); }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10"
+                      ><Trash2 className="h-4 w-4" /> Delete chat</button>
+                    </div>
                   )}
-                >
-                  <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{chat.title}</span>
-                </button>
+                </div>
               ))}
             </div>
           </ScrollArea>
@@ -694,10 +767,11 @@ export default function Chat() {
         {/* Main */}
         <main className="flex-1 flex flex-col">
           {/* Model Selector */}
-          <div className="p-4 border-b border-border flex items-center gap-4">
-            <label className="text-sm font-medium">Model:</label>
+          <div className="p-4 border-b border-border flex items-center gap-4 bg-card/45">
+            <div className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Network className="h-4 w-4" /></div>
+            <div className="min-w-0"><p className="text-[11px] uppercase tracking-[.14em] text-muted-foreground">Active perspective</p><p className="text-sm font-medium truncate">{activeChat?.title || 'New conversation'}</p></div>
             <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="w-72">
+              <SelectTrigger className="ml-auto w-64 rounded-xl bg-background/80">
                 <SelectValue placeholder="Choose a model" />
               </SelectTrigger>
               <SelectContent className="max-h-80">
@@ -708,11 +782,11 @@ export default function Chat() {
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-xs text-muted-foreground">Using: {selectedModelName}</span>
+            <span className="hidden xl:inline text-xs text-muted-foreground">{selectedModelName}</span>
           </div>
 
           {/* Messages */}
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="flex-1 p-4 md:p-6">
             <div className="max-w-3xl mx-auto space-y-4">
               {activeChat?.messages.map((message) => (
                 <div
@@ -721,8 +795,8 @@ export default function Chat() {
                 >
                   <div
                     className={cn(
-                      "rounded-2xl px-4 py-3 max-w-[80%] relative select-text",
-                      message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                      "rounded-2xl px-4 py-3 max-w-[80%] relative select-text shadow-soft border",
+                      message.role === "user" ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border"
                     )}
                     onMouseUp={(e) => handleSelectionChange(message.id, e)}
                   >
@@ -748,6 +822,7 @@ export default function Chat() {
                   </div>
                 </div>
               ))}
+              <div ref={latestMessageRef} />
               
               <FloatingTextMenu 
                 visible={selectionMenu.visible}
@@ -759,7 +834,7 @@ export default function Chat() {
           </ScrollArea>
 
           {/* Input + Single Attachment */}
-          <div className="p-4 border-t border-border">
+          <div className="p-4 border-t border-border bg-card/65 backdrop-blur">
             <div className="max-w-3xl mx-auto space-y-3">
               {/* pending image preview */}
               {pendingImage && (
@@ -812,7 +887,7 @@ export default function Chat() {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 rounded-2xl border border-border bg-background/80 p-2 shadow-soft">
                 {/* hidden input */}
                 <input
                   ref={fileInputRef}
@@ -823,7 +898,7 @@ export default function Chat() {
                 />
 
                 {/* attach button */}
-                <Button type="button" variant="outline" onClick={onPickImage} title="Attach image">
+                <Button type="button" variant="ghost" onClick={onPickImage} title="Attach image" className="rounded-xl" disabled={isResponding}>
                   <ImageIcon className="h-4 w-4 mr-2" />
                   Image
                 </Button>
@@ -838,12 +913,13 @@ export default function Chat() {
                       ? "Ask about the selected text..."
                       : "Type your message..."
                   }
-                  className="flex-1"
+                  className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                  disabled={isResponding}
                 />
 
                 {/* send */}
-                <Button onClick={handleSend} size="icon" title="Send">
-                  <Send className="h-4 w-4" />
+                <Button onClick={handleSend} size="icon" title="Send" className="rounded-xl" disabled={isResponding}>
+                  {isResponding ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
