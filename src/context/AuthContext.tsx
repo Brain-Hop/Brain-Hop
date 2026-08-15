@@ -157,7 +157,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
             ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
           },
         });
@@ -206,10 +205,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         const response = await fetch(`${apiBaseUrl}/api/auth/session`, {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             access_token: oauthData.accessToken,
             refresh_token: oauthData.refreshToken,

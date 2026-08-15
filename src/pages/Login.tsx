@@ -40,11 +40,7 @@ export default function Login() {
     try {
       const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // Bypass Ngrok free tier warning page
-          "ngrok-skip-browser-warning": "true",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
