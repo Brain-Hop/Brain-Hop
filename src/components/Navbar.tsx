@@ -16,44 +16,45 @@ export function Navbar() {
         {/* --- Brand / Logo --- */}
         <Link
           to={brandHref}
-          className="flex items-center gap-3 font-semibold text-lg group"
+          className="flex items-center gap-2 font-bold text-lg group"
         >
-          <div className="h-10 w-10 rounded-xl bg-primary/10 ring-1 ring-primary/10 flex items-center justify-center overflow-hidden">
-  <img
-    src="/brain_hop.png"
-    alt="Brain Hop Logo"
-    className="h-20 w-10 object-contain transition-transform duration-200 group-hover:scale-105"
-  />
-</div>
-
-          <span className="text-foreground tracking-[-.03em]">Brain Hop</span>
+          <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center">
+            <img
+              src="/brain_hop.png"
+              alt="Brain Hop Logo"
+              className="w-8 h-12 object-cover object-top -mt-0.5 group-hover:scale-105 transition-transform duration-200"
+            />
+          </div>
+          <span className="text-foreground tracking-[-.03em]">
+            Brain<span className="ml-1 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">Hop</span>
+          </span>
         </Link>
 
         {/* --- Right side buttons --- */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <ThemeToggle />
 
           {!isAuthenticated ? (
             <>
-              <Button variant="ghost" asChild>
+              <Button variant="ghost" asChild className="rounded-full">
                 <Link to="/login">Login</Link>
               </Button>
-              <Button asChild>
+              <Button asChild className="rounded-full bg-zinc-950 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-950">
                 <Link to="/signup">Sign Up</Link>
               </Button>
             </>
           ) : (
             <>
-              <Button variant="ghost" asChild>
+              <Button variant="ghost" asChild className="rounded-full">
                 <Link to="/models">Models</Link>
               </Button>
-              <Button variant={isOnChat ? "default" : "ghost"} asChild>
+              <Button variant={isOnChat ? "default" : "ghost"} asChild className="rounded-full">
                 <Link to="/chat">Chat</Link>
               </Button>
-              <Button variant="ghost" asChild>
+              <Button variant="ghost" asChild className="rounded-full">
                 <Link to="/profile">Profile</Link>
               </Button>
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="rounded-full">
                 <Link to="/logout">Logout</Link>
               </Button>
             </>

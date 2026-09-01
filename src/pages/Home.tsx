@@ -1,41 +1,195 @@
-import { Button } from "@/components/ui/button";
-import { Navbar } from "@/components/Navbar";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BrainCircuit, GitMerge, Layers3, Network } from "lucide-react";
-
-const features = [
-  { icon: Network, title: "Follow the thread", text: "Keep every line of thought visible, from a quick question to a deep research trail." },
-  { icon: Layers3, title: "Choose the right mind", text: "Move between capable models without breaking the flow of your work." },
-  { icon: GitMerge, title: "Connect what matters", text: "Merge separate conversations into a shared context when ideas begin to overlap." },
-];
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/context/AuthContext";
+import { GoogleGIcon, TrustpilotStar } from "@/components/icons/AIIcons";
+import { OrbitBackground } from "@/components/landing/OrbitBackground";
+import { ActivityStack } from "@/components/landing/ActivityStack";
+import { PartnerLogos } from "@/components/landing/PartnerLogos";
+import {
+  FeaturesModal,
+  PricingModal,
+  SalesModal,
+  ChangelogModal,
+} from "@/components/landing/LandingModals";
 
 export default function Home() {
+  const { isAuthenticated } = useAuth();
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+
   return (
-    <div className="min-h-screen bg-gradient-subtle overflow-hidden">
-      <Navbar />
-      <main>
-        <section className="container mx-auto px-4 pt-20 pb-24 md:pt-28">
-          <div className="grid gap-14 lg:grid-cols-[1.08fr_.92fr] items-center max-w-6xl mx-auto">
-            <div className="space-y-7">
-              <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-4 py-2 text-xs font-semibold uppercase tracking-[.16em] text-muted-foreground"><BrainCircuit className="h-4 w-4 text-primary" /> A connected AI workspace</p>
-              <h1 className="text-5xl md:text-7xl font-semibold tracking-[-.055em] leading-[.96]">Think in paths,<br /><span className="text-primary">not prompts.</span></h1>
-              <p className="max-w-xl text-lg md:text-xl leading-relaxed text-muted-foreground">Brain Hop helps you move between models, preserve useful context, and connect conversations when a single thread is not enough.</p>
-              <div className="flex flex-wrap gap-3 pt-2"><Button size="lg" asChild className="rounded-full px-6"><Link to="/signup">Start a workspace <ArrowRight className="ml-2 h-4 w-4" /></Link></Button><Button size="lg" variant="outline" asChild className="rounded-full px-6"><Link to="/login">Continue thinking</Link></Button></div>
+    <div className="relative min-h-screen w-full bg-[#FAFAFC] dark:bg-[#090A0F] text-zinc-900 dark:text-white flex flex-col justify-between overflow-x-hidden selection:bg-violet-500/20 selection:text-violet-900 dark:selection:text-violet-100">
+      {/* ----------------- TOP FLOATING NAVBAR ----------------- */}
+      <header className="sticky top-4 sm:top-6 z-50 w-full px-4 sm:px-6 max-w-5xl mx-auto">
+        <div className="w-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/70 dark:border-zinc-800/80 rounded-full shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] px-4 sm:px-6 py-2.5 flex items-center justify-between transition-all">
+          {/* Logo & Brand Name */}
+          <Link
+            to={isAuthenticated ? "/chat" : "/"}
+            className="flex items-center gap-2 group cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center">
+              <img
+                src="/brain_hop.png"
+                alt="Brain Hop Logo"
+                className="w-8 h-12 object-cover object-top -mt-0.5 group-hover:scale-105 transition-transform"
+              />
             </div>
-            <div className="relative min-h-[380px] rounded-[2rem] border border-border bg-card/80 shadow-medium p-6 overflow-hidden">
-              <div className="absolute inset-0 opacity-50" style={{ backgroundImage: "radial-gradient(hsl(var(--border)) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
-              <div className="relative h-full flex items-center justify-center">
-                <div className="absolute h-48 w-48 rounded-full border border-primary/30 bg-primary/10" /><div className="absolute h-28 w-28 rounded-full border border-accent/70 bg-accent/20" />
-                <div className="absolute top-14 left-8 rounded-2xl border border-border bg-background/90 p-4 shadow-soft text-sm"><p className="font-medium">Research thread</p><p className="text-xs text-muted-foreground mt-1">Claude · 12 notes</p></div>
-                <div className="absolute bottom-12 right-6 rounded-2xl border border-border bg-background/90 p-4 shadow-soft text-sm"><p className="font-medium">Product ideas</p><p className="text-xs text-muted-foreground mt-1">Gemini · merged</p></div>
-                <div className="relative z-10 rounded-2xl bg-primary text-primary-foreground p-5 shadow-medium"><GitMerge className="h-8 w-8" /><p className="mt-3 text-sm font-medium">Shared context</p></div>
-              </div>
+            <div className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center">
+              <span>Brain</span>
+              <span className="ml-1 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">
+                Hop
+              </span>
+            </div>
+          </Link>
+
+          {/* Center Navigation Links (Hidden on small mobile, visible on md+) */}
+          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-600 dark:text-zinc-300">
+            <button
+              onClick={() => setActiveModal("features")}
+              className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              Features
+            </button>
+            <Link
+              to={isAuthenticated ? "/models" : "/signup"}
+              className="hover:text-zinc-950 dark:hover:text-white transition-colors"
+            >
+              Models
+            </Link>
+            <button
+              onClick={() => setActiveModal("pricing")}
+              className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              Pricing
+            </button>
+            <button
+              onClick={() => setActiveModal("features")}
+              className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              Docs
+            </button>
+            <button
+              onClick={() => setActiveModal("changelog")}
+              className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              Changelog
+            </button>
+          </nav>
+
+          {/* Right Action Items */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
+
+            {!isAuthenticated ? (
+              <>
+                <Button
+                  variant="ghost"
+                  asChild
+                  className="rounded-full text-xs sm:text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:text-zinc-950 dark:hover:text-white px-3 sm:px-4 h-9"
+                >
+                  <Link to="/login">Sign in</Link>
+                </Button>
+                <Button
+                  asChild
+                  className="rounded-full bg-zinc-950 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100 px-4 sm:px-5 h-9 text-xs sm:text-sm font-medium shadow-sm transition-all"
+                >
+                  <Link to="/signup">Get Started</Link>
+                </Button>
+              </>
+            ) : (
+              <Button
+                asChild
+                className="rounded-full bg-zinc-950 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100 px-5 h-9 text-sm font-medium shadow-sm"
+              >
+                <Link to="/chat">Open Chat</Link>
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ----------------- HERO & ORBIT SECTION ----------------- */}
+      <main className="relative flex-1 flex flex-col items-center justify-center w-full px-4 pt-12 pb-6 md:pt-16 md:pb-10">
+        {/* Orbital Rings & AI Model Badges Background */}
+        <OrbitBackground />
+
+        {/* Center Hero Content Container */}
+        <div className="relative z-20 flex flex-col items-center text-center max-w-3xl mx-auto pointer-events-auto">
+          {/* Rating Badges */}
+          <div className="inline-flex items-center justify-center gap-4 sm:gap-6 text-xs sm:text-[13px] font-medium text-zinc-600 dark:text-zinc-300 mb-5 sm:mb-6 select-none">
+            <div className="flex items-center gap-1.5">
+              <GoogleGIcon className="w-4 h-4" />
+              <span className="font-bold text-zinc-900 dark:text-white">4.9</span>
+              <span className="text-zinc-500 dark:text-zinc-400">Google</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <TrustpilotStar className="w-3.5 h-3.5" />
+              <span className="font-bold text-zinc-900 dark:text-white">4.8</span>
+              <span className="text-zinc-500 dark:text-zinc-400">Trustpilot</span>
             </div>
           </div>
-        </section>
-        <section className="container mx-auto px-4 pb-24"><div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-4">{features.map(({ icon: Icon, title, text }) => <article key={title} className="rounded-3xl border border-border bg-card/75 p-7 shadow-soft"><div className="mb-8 flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><Icon className="h-5 w-5" /></div><h2 className="text-xl font-semibold">{title}</h2><p className="mt-3 leading-relaxed text-muted-foreground">{text}</p></article>)}</div></section>
+
+          {/* Main Title */}
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[62px] font-extrabold tracking-[-0.035em] text-zinc-900 dark:text-white leading-[1.08] max-w-2xl">
+            AI-powered workspace to{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">
+              hop
+            </span>{" "}
+            across top models
+          </h1>
+
+          {/* Subtitle */}
+          <p className="mt-4 sm:mt-5 text-sm sm:text-base md:text-lg text-zinc-500 dark:text-zinc-400 max-w-lg leading-relaxed font-normal">
+            Chat with the best AI models, merge conversations, and build a semantic memory that works for you.
+          </p>
+
+          {/* CTA Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-3.5 mt-7 sm:mt-8">
+            <Button
+              asChild
+              size="lg"
+              className="rounded-full bg-zinc-950 hover:bg-zinc-800 text-white dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100 px-6 sm:px-7 h-11 text-sm sm:text-[15px] font-medium shadow-md transition-all hover:scale-[1.02]"
+            >
+              <Link to="/signup">Get started free</Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setActiveModal("sales")}
+              className="rounded-full bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 px-6 sm:px-7 h-11 text-sm sm:text-[15px] font-medium shadow-sm transition-all"
+            >
+              Talk to sales team
+            </Button>
+          </div>
+
+          {/* Stacked Activity Notification Cards */}
+          <ActivityStack />
+        </div>
       </main>
-      <footer className="border-t border-border py-8"><div className="container mx-auto px-4 flex justify-between text-sm text-muted-foreground"><span>Brain Hop</span><span>© 2026</span></div></footer>
+
+      {/* ----------------- BOTTOM SOCIAL PROOF / LOGOS ----------------- */}
+      <footer className="relative z-20 w-full">
+        <PartnerLogos />
+      </footer>
+
+      {/* ----------------- MODALS ----------------- */}
+      <FeaturesModal
+        isOpen={activeModal === "features"}
+        onClose={() => setActiveModal(null)}
+      />
+      <PricingModal
+        isOpen={activeModal === "pricing"}
+        onClose={() => setActiveModal(null)}
+      />
+      <SalesModal
+        isOpen={activeModal === "sales"}
+        onClose={() => setActiveModal(null)}
+      />
+      <ChangelogModal
+        isOpen={activeModal === "changelog"}
+        onClose={() => setActiveModal(null)}
+      />
     </div>
   );
 }
