@@ -506,7 +506,9 @@ const STORAGE_KEY = "selectedModelId";
 export function saveSelectedModel(id: string) {
   try {
     localStorage.setItem(STORAGE_KEY, id);
-  } catch {}
+  } catch {
+    // Ignore localStorage write errors
+  }
 }
 
 export function loadSelectedModelId(): string | null {

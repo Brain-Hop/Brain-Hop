@@ -162,10 +162,10 @@ export default function Chat() {
             const localMap = new Map(prev.map(c => [c.id, c]));
             
             // Format remote chats to match Chat interface
-            const formattedRemote: Chat[] = remoteChats.map((rc: any) => ({
-              id: rc.chat_id,
-              title: rc.title,
-              messages: typeof rc.chat === 'string' ? JSON.parse(rc.chat) : (rc.chat || []),
+            const formattedRemote: Chat[] = remoteChats.map((rc: { chat_id?: string; title?: string; chat?: unknown }) => ({
+              id: rc.chat_id || newId(),
+              title: rc.title || "Untitled Chat",
+              messages: (typeof rc.chat === 'string' ? JSON.parse(rc.chat) : (rc.chat || [])) as Message[],
             }));
 
             // Identify NEW chats from remote
@@ -229,7 +229,7 @@ export default function Chat() {
 
     try {
       // Get existing pending chats from localStorage
-      const existingPending = safeParse<Record<string, any>>(
+      const existingPending = safeParse<Record<string, Record<string, unknown>>>(
         window.localStorage.getItem(LS_SUPABASE_CHATS_KEY),
         {}
       );
@@ -341,9 +341,9 @@ export default function Chat() {
       body: form, // browser sets multipart boundary
     });
 
-    const data = await resp.json().catch(() => ({} as any));
+    const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
     if (!resp.ok) {
-      throw new Error(data?.error || "Image upload failed");
+      throw new Error((data?.error as string) || "Image upload failed");
     }
     return data.image_name as string;
   };
@@ -452,11 +452,12 @@ export default function Chat() {
         return updated;
       });
       window.setTimeout(() => { void queueBackgroundSync(true); }, 0);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
       console.error("RAG chat error:", err);
       toast({
         title: "Chat failed",
-        description: err?.message || "Unable to get a response.",
+        description: errObj?.message || "Unable to get a response.",
         variant: "destructive",
       });
       setChats((prev) =>
@@ -580,9 +581,10 @@ export default function Chat() {
       // Save merged chat to localStorage (will sync to Supabase on logout/close)
       saveChatToLocalStorage(newChatId, mergedChat.title, mergedChat.messages);
       toast({ title: "Merged", description: `Created chat ${newChatId} from ${selectedChats.length} chats.` });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
       console.error("Merge error:", err);
-      toast({ title: "Merge failed", description: err?.message || "Unable to merge chats.", variant: "destructive" });
+      toast({ title: "Merge failed", description: errObj?.message || "Unable to merge chats.", variant: "destructive" });
     }
   };
 
@@ -653,7 +655,7 @@ export default function Chat() {
     // Also sync on beforeunload as backup
     const onUnload = () => {
       // Use fetch with keepalive for reliable delivery with auth headers
-      const pendingChats = safeParse<Record<string, any>>(
+      const pendingChats = safeParse<Record<string, Record<string, unknown>>>(
         window.localStorage.getItem(LS_SUPABASE_CHATS_KEY),
         {}
       );
@@ -808,9 +810,9 @@ export default function Chat() {
 
                     {/* render single image if present */}
                     {message.image && (
-                      // eslint-disable-next-line jsx-a11y/alt-text
                       <img
                         src={message.image}
+                        alt="Chat attachment"
                         className="mt-2 rounded border border-border max-h-48 object-contain bg-background"
                       />
                     )}
@@ -847,8 +849,11 @@ export default function Chat() {
                     </Button>
                   </div>
                   <div className="relative border border-border rounded overflow-hidden w-52">
-                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                    <img src={pendingImage.dataUrl} className="w-52 h-36 object-cover bg-background" />
+                    <img
+                      src={pendingImage.dataUrl}
+                      alt="Attachment preview"
+                      className="w-52 h-36 object-cover bg-background"
+                    />
                     <div className="absolute bottom-0 left-0 right-0 text-[10px] bg-black/40 text-white px-1 truncate">
                       {pendingImage.name}
                     </div>

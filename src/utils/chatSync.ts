@@ -3,6 +3,15 @@
  * Can be called from anywhere (logout, beforeunload, etc.)
  */
 
+export interface SupabaseChatRecord {
+  chat_id?: string;
+  title?: string;
+  zip_file_url?: string | null;
+  vector_count?: number;
+  chat?: unknown;
+  [key: string]: unknown;
+}
+
 const LS_SUPABASE_CHATS_KEY = "supabase_chats_pending_sync";
 
 function safeParse<T>(v: string | null, fallback: T): T {
@@ -24,7 +33,7 @@ export async function syncChatsToSupabase(
   }
 
   try {
-    const pendingChats = safeParse<Record<string, any>>(
+    const pendingChats = safeParse<Record<string, SupabaseChatRecord>>(
       typeof window !== "undefined" ? window.localStorage.getItem(LS_SUPABASE_CHATS_KEY) : null,
       {}
     );
@@ -64,14 +73,13 @@ export async function syncChatsToSupabase(
     console.error('[CHAT SYNC] Failed to sync chats to Supabase:', err);
     return false;
   }
-  }
-
+}
 
 export async function fetchChatsFromSupabase(
   userId: string | null,
   token: string | null,
   apiBaseUrl: string
-): Promise<any[]> {
+): Promise<SupabaseChatRecord[]> {
   if (!userId || !token) {
     return [];
   }
@@ -85,7 +93,7 @@ export async function fetchChatsFromSupabase(
 
     if (response.ok) {
       const data = await response.json();
-      return data.chats || [];
+      return (data.chats as SupabaseChatRecord[]) || [];
     } else {
       console.warn('[CHAT SYNC] Failed to fetch chats:', response.status);
       return [];
@@ -95,5 +103,3 @@ export async function fetchChatsFromSupabase(
     return [];
   }
 }
-
-
