@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -8,21 +8,23 @@ import { OrbitBackground } from "@/components/landing/OrbitBackground";
 import { ActivityStack } from "@/components/landing/ActivityStack";
 import { PartnerLogos } from "@/components/landing/PartnerLogos";
 import {
-  FeaturesModal,
-  PricingModal,
-  SalesModal,
-  ChangelogModal,
-} from "@/components/landing/LandingModals";
+  FeaturesSection,
+  ModelsSection,
+  PricingSection,
+  DocsSection,
+  ChangelogSection,
+  ContactSection,
+  FooterSection,
+} from "@/components/landing/LandingSections";
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
-  const [activeModal, setActiveModal] = useState<string | null>(null);
 
   return (
-    <div className="relative min-h-screen w-full bg-[#FAFAFC] dark:bg-[#090A0F] text-zinc-900 dark:text-white flex flex-col justify-between overflow-x-hidden selection:bg-violet-500/20 selection:text-violet-900 dark:selection:text-violet-100">
+    <div className="relative min-h-screen w-full bg-[#FAFAFC] dark:bg-[#090A0F] text-zinc-900 dark:text-white flex flex-col justify-between overflow-x-hidden selection:bg-violet-500/20 selection:text-violet-900 dark:selection:text-violet-100 transition-colors duration-300">
       {/* ----------------- TOP FLOATING NAVBAR ----------------- */}
       <header className="sticky top-4 sm:top-6 z-50 w-full px-4 sm:px-6 max-w-5xl mx-auto">
-        <div className="w-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/70 dark:border-zinc-800/80 rounded-full shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.4)] px-4 sm:px-6 py-2.5 flex items-center justify-between transition-all">
+        <div className="w-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/70 dark:border-white/10 rounded-full shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_30px_rgba(0,0,0,0.5)] px-4 sm:px-6 py-2.5 flex items-center justify-between transition-all">
           {/* Logo & Brand Name */}
           <Link
             to={isAuthenticated ? "/chat" : "/"}
@@ -43,38 +45,44 @@ export default function Home() {
             </div>
           </Link>
 
-          {/* Center Navigation Links (Hidden on small mobile, visible on md+) */}
+          {/* Center Smooth Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-600 dark:text-zinc-300">
-            <button
-              onClick={() => setActiveModal("features")}
+            <a
+              href="#features"
               className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
             >
               Features
-            </button>
-            <Link
-              to={isAuthenticated ? "/models" : "/signup"}
-              className="hover:text-zinc-950 dark:hover:text-white transition-colors"
+            </a>
+            <a
+              href="#models"
+              className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
             >
               Models
-            </Link>
-            <button
-              onClick={() => setActiveModal("pricing")}
+            </a>
+            <a
+              href="#pricing"
               className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
             >
               Pricing
-            </button>
-            <button
-              onClick={() => setActiveModal("features")}
+            </a>
+            <a
+              href="#docs"
               className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
             >
               Docs
-            </button>
-            <button
-              onClick={() => setActiveModal("changelog")}
+            </a>
+            <a
+              href="#changelog"
               className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
             >
               Changelog
-            </button>
+            </a>
+            <a
+              href="#contact"
+              className="hover:text-zinc-950 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              Contact
+            </a>
           </nav>
 
           {/* Right Action Items */}
@@ -110,7 +118,7 @@ export default function Home() {
       </header>
 
       {/* ----------------- HERO & ORBIT SECTION ----------------- */}
-      <main className="relative flex-1 flex flex-col items-center justify-center w-full px-4 pt-12 pb-6 md:pt-16 md:pb-10">
+      <section className="relative min-h-[calc(100vh-80px)] flex flex-col items-center justify-center w-full px-4 pt-12 pb-16 md:pt-16 md:pb-20">
         {/* Orbital Rings & AI Model Badges Background */}
         <OrbitBackground />
 
@@ -154,42 +162,35 @@ export default function Home() {
               <Link to="/signup">Get started free</Link>
             </Button>
             <Button
+              asChild
               variant="outline"
               size="lg"
-              onClick={() => setActiveModal("sales")}
-              className="rounded-full bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 px-6 sm:px-7 h-11 text-sm sm:text-[15px] font-medium shadow-sm transition-all"
+              className="rounded-full bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:text-zinc-950 dark:hover:text-white border border-zinc-200 dark:border-zinc-800 px-6 sm:px-7 h-11 text-sm sm:text-[15px] font-medium shadow-sm transition-all"
             >
-              Talk to sales team
+              <a href="#contact">Contact & Contribute</a>
             </Button>
           </div>
 
           {/* Stacked Activity Notification Cards */}
           <ActivityStack />
         </div>
-      </main>
 
-      {/* ----------------- BOTTOM SOCIAL PROOF / LOGOS ----------------- */}
-      <footer className="relative z-20 w-full">
-        <PartnerLogos />
-      </footer>
+        {/* Partner Logos inside Hero */}
+        <div className="relative z-20 w-full mt-10">
+          <PartnerLogos />
+        </div>
+      </section>
 
-      {/* ----------------- MODALS ----------------- */}
-      <FeaturesModal
-        isOpen={activeModal === "features"}
-        onClose={() => setActiveModal(null)}
-      />
-      <PricingModal
-        isOpen={activeModal === "pricing"}
-        onClose={() => setActiveModal(null)}
-      />
-      <SalesModal
-        isOpen={activeModal === "sales"}
-        onClose={() => setActiveModal(null)}
-      />
-      <ChangelogModal
-        isOpen={activeModal === "changelog"}
-        onClose={() => setActiveModal(null)}
-      />
+      {/* ----------------- SCROLLABLE SINGLE-PAGE SECTIONS ----------------- */}
+      <FeaturesSection />
+      <ModelsSection />
+      <PricingSection />
+      <DocsSection />
+      <ChangelogSection />
+      <ContactSection />
+
+      {/* ----------------- FOOTER ----------------- */}
+      <FooterSection />
     </div>
   );
 }

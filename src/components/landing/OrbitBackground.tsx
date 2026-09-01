@@ -15,14 +15,13 @@ import {
 interface OrbitNodeProps {
   children: React.ReactNode;
   className?: string;
-  label?: string;
   tooltip?: string;
 }
 
-function OrbitNode({ children, className = "", label, tooltip }: OrbitNodeProps) {
+function OrbitNode({ children, className = "", tooltip }: OrbitNodeProps) {
   return (
     <div
-      className={`absolute group z-10 flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.4)] transition-all duration-300 hover:scale-115 hover:shadow-[0_12px_28px_-4px_rgba(0,0,0,0.12)] cursor-pointer select-none ${className}`}
+      className={`absolute group z-10 flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200/80 dark:border-white/10 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] transition-all duration-300 hover:scale-115 hover:border-violet-500/60 dark:hover:border-violet-400/60 hover:shadow-[0_0_25px_rgba(139,92,246,0.25)] cursor-pointer select-none ${className}`}
     >
       <div className="flex items-center justify-center p-2.5 transition-transform duration-300 group-hover:scale-105">
         {children}
@@ -39,22 +38,25 @@ function OrbitNode({ children, className = "", label, tooltip }: OrbitNodeProps)
 export function OrbitBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center -z-0">
+      {/* Ambient background glow in dark mode */}
+      <div className="absolute w-[600px] h-[600px] bg-gradient-to-br from-indigo-500/10 via-violet-500/10 to-transparent blur-3xl rounded-full pointer-events-none" />
+
       {/* Concentric Orbit Rings */}
       <div className="relative w-full h-full max-w-[1400px] flex items-center justify-center">
         {/* Ring 1 (Innermost) */}
-        <div className="absolute w-[440px] h-[440px] rounded-full border border-zinc-200/60 dark:border-zinc-800/40" />
+        <div className="absolute w-[440px] h-[440px] rounded-full border border-zinc-200/60 dark:border-white/[0.08]" />
 
         {/* Ring 2 */}
-        <div className="absolute w-[680px] h-[680px] rounded-full border border-zinc-200/60 dark:border-zinc-800/40" />
+        <div className="absolute w-[680px] h-[680px] rounded-full border border-zinc-200/60 dark:border-white/[0.07]" />
 
         {/* Ring 3 */}
-        <div className="absolute w-[940px] h-[940px] rounded-full border border-zinc-200/50 dark:border-zinc-800/30" />
+        <div className="absolute w-[940px] h-[940px] rounded-full border border-zinc-200/50 dark:border-white/[0.06]" />
 
         {/* Ring 4 */}
-        <div className="absolute w-[1220px] h-[1220px] rounded-full border border-zinc-200/40 dark:border-zinc-800/20" />
+        <div className="absolute w-[1220px] h-[1220px] rounded-full border border-zinc-200/40 dark:border-white/[0.05]" />
 
         {/* Ring 5 (Outermost) */}
-        <div className="absolute w-[1520px] h-[1520px] rounded-full border border-zinc-200/30 dark:border-zinc-800/10" />
+        <div className="absolute w-[1520px] h-[1520px] rounded-full border border-zinc-200/30 dark:border-white/[0.04]" />
 
         {/* Interactive Floating AI Badges placed along orbits */}
         <div className="pointer-events-auto w-full h-full relative max-w-[1240px] mx-auto min-h-[640px]">
