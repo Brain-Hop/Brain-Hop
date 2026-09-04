@@ -52,8 +52,10 @@ type PendingImage = {
   dataUrl: string; // base64 (for preview only)
 };
 
-const LS_KEY = "chat_state_v4_single_image";
-const LS_SUPABASE_CHATS_KEY = "supabase_chats_pending_sync"; // Chats in Supabase format waiting to be synced
+import { getSupabasePendingSyncKey } from "@/utils/chatSync";
+
+const getChatStorageKey = (uid: string | null) =>
+  uid ? `brain_hop_chat_state_${uid}` : "brain_hop_chat_state_guest";
 
 // ---- helpers ----
 function safeParse<T>(v: string | null, fallback: T): T {
@@ -102,7 +104,7 @@ export default function Chat() {
   }>({ visible: false, x: 0, y: 0, text: "", messageId: "" });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const hydratedRef = useRef(false);
+  const lastLoadedUserIdRef = useRef<string | null | undefined>(undefined);
   const syncQueueRef = useRef<Promise<boolean>>(Promise.resolve(true));
   const latestMessageRef = useRef<HTMLDivElement | null>(null);
 
@@ -119,18 +121,34 @@ export default function Chat() {
     }
   }, [isAuthenticated, loading, navigate]);
 
-  // ===== hydrate from localStorage =====
+  // Clean up legacy unscoped keys on load
   useEffect(() => {
-    if (hydratedRef.current) return;
-    hydratedRef.current = true;
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("chat_state_v4_single_image");
+        window.localStorage.removeItem("supabase_chats_pending_sync");
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
 
+  // ===== hydrate and load user-specific chats =====
+  useEffect(() => {
+    if (loading || !isAuthenticated || !userId) return;
+
+    // Detect if userId changed (login with new account or first mount)
+    if (lastLoadedUserIdRef.current === userId) return;
+    lastLoadedUserIdRef.current = userId;
+
+    const storageKey = getChatStorageKey(userId);
     const cached = safeParse<{
       chats: Chat[];
       activeChatId: string;
       selectedModel: string;
       pendingImage: PendingImage | null;
     }>(
-      typeof window !== "undefined" ? window.localStorage.getItem(LS_KEY) : null,
+      typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null,
       {
         chats: [{ id: initialChatId, title: "New Conversation", messages: [] }],
         activeChatId: initialChatId,
@@ -139,68 +157,90 @@ export default function Chat() {
       }
     );
 
-    setChats(cached.chats?.length ? cached.chats : [{ id: initialChatId, title: "New Conversation", messages: [] }]);
-    setActiveChatId(cached.activeChatId || initialChatId);
+    const initialChats = cached.chats?.length
+      ? cached.chats
+      : [{ id: initialChatId, title: "New Conversation", messages: [] }];
+    setChats(initialChats);
+    setActiveChatId(cached.activeChatId || initialChats[0].id);
     setSelectedModel(cached.selectedModel || initialModelId);
     setPendingImage(cached.pendingImage ?? null);
-  }, [initialChatId, initialModelId]);
 
-  // ===== fetch chats from Supabase on login/mount =====
-  useEffect(() => {
-    if (!userId || !token) return;
+    // Fetch remote chats from Supabase for this user
+    if (token) {
+      const loadRemoteChats = async () => {
+        try {
+          const { fetchChatsFromSupabase } = await import("@/utils/chatSync");
+          const remoteChats = await fetchChatsFromSupabase(userId, token, apiBaseUrl);
 
-    const loadRemoteChats = async () => {
-      try {
-        const { fetchChatsFromSupabase } = await import('@/utils/chatSync');
-        const remoteChats = await fetchChatsFromSupabase(userId, token, apiBaseUrl);
-        
-        if (remoteChats && remoteChats.length > 0) {
-          setChats(prev => {
-            // Merge remote chats with local chats
-            // If ID exists locally, keep local (it might have unsaved changes)
-            // If ID doesn't exist locally, add remote
-            const localMap = new Map(prev.map(c => [c.id, c]));
-            
-            // Format remote chats to match Chat interface
+          if (remoteChats && remoteChats.length > 0) {
             const formattedRemote: Chat[] = remoteChats.map((rc: { chat_id?: string; title?: string; chat?: unknown }) => ({
               id: rc.chat_id || newId(),
               title: rc.title || "Untitled Chat",
-              messages: (typeof rc.chat === 'string' ? JSON.parse(rc.chat) : (rc.chat || [])) as Message[],
+              messages: (typeof rc.chat === "string" ? JSON.parse(rc.chat) : rc.chat || []) as Message[],
             }));
 
-            // Identify NEW chats from remote
-            let hasNew = false;
-            formattedRemote.forEach(rc => {
-              if (!localMap.has(rc.id)) {
-                localMap.set(rc.id, rc);
-                hasNew = true;
+            const pendingKey = getSupabasePendingSyncKey(userId);
+            const pendingMap = safeParse<Record<string, { chat?: unknown; title?: string }>>(
+              typeof window !== "undefined" ? window.localStorage.getItem(pendingKey) : null,
+              {}
+            );
+
+            const combinedMap = new Map<string, Chat>();
+            formattedRemote.forEach((chat) => {
+              if (pendingMap[chat.id]) {
+                const pendingMessages = (Array.isArray(pendingMap[chat.id].chat)
+                  ? pendingMap[chat.id].chat
+                  : chat.messages) as Message[];
+                combinedMap.set(chat.id, {
+                  ...chat,
+                  title: pendingMap[chat.id].title || chat.title,
+                  messages: pendingMessages,
+                });
+              } else {
+                combinedMap.set(chat.id, chat);
               }
             });
 
-            if (!hasNew) return prev;
-            
-            // Convert back to array
-            return Array.from(localMap.values());
-          });
+            Object.entries(pendingMap).forEach(([pendingId, pendingRecord]) => {
+              if (!combinedMap.has(pendingId)) {
+                combinedMap.set(pendingId, {
+                  id: pendingId,
+                  title: pendingRecord.title || "New Conversation",
+                  messages: (Array.isArray(pendingRecord.chat) ? pendingRecord.chat : []) as Message[],
+                });
+              }
+            });
+
+            const mergedList = Array.from(combinedMap.values());
+            if (mergedList.length > 0) {
+              setChats(mergedList);
+              setActiveChatId((current) =>
+                combinedMap.has(current) ? current : mergedList[0].id
+              );
+            }
+          }
+        } catch (err) {
+          console.error("[CHAT] Failed to load remote chats:", err);
         }
-      } catch (err) {
-        console.error('[CHAT] Failed to load remote chats:', err);
-      }
-    };
+      };
 
-    loadRemoteChats();
-  }, [userId, token, apiBaseUrl]);
+      loadRemoteChats();
+    }
+  }, [userId, token, isAuthenticated, loading, apiBaseUrl, initialChatId, initialModelId]);
 
-  // ===== persist to localStorage =====
+  // ===== persist to user-scoped localStorage =====
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (loading || !isAuthenticated || !userId) return;
+    const storageKey = getChatStorageKey(userId);
     const snapshot = JSON.stringify({
       chats,
       activeChatId,
       selectedModel,
       pendingImage,
     });
-    window.localStorage.setItem(LS_KEY, snapshot);
-  }, [chats, activeChatId, selectedModel, pendingImage]);
+    window.localStorage.setItem(storageKey, snapshot);
+  }, [chats, activeChatId, selectedModel, pendingImage, userId, loading, isAuthenticated]);
 
   // keep model synced if changed on models page
   useEffect(() => {
@@ -228,9 +268,9 @@ export default function Chat() {
     }
 
     try {
-      // Get existing pending chats from localStorage
+      const pendingKey = getSupabasePendingSyncKey(userId);
       const existingPending = safeParse<Record<string, Record<string, unknown>>>(
-        window.localStorage.getItem(LS_SUPABASE_CHATS_KEY),
+        window.localStorage.getItem(pendingKey),
         {}
       );
 
@@ -249,9 +289,9 @@ export default function Chat() {
 
       // Save to pending sync
       existingPending[chatId] = chatRecord;
-      window.localStorage.setItem(LS_SUPABASE_CHATS_KEY, JSON.stringify(existingPending));
+      window.localStorage.setItem(pendingKey, JSON.stringify(existingPending));
       
-      console.log(`[CHAT] Saved chat ${chatId} to localStorage (pending sync)`);
+      console.log(`[CHAT] Saved chat ${chatId} to localStorage (pending sync) for user ${userId}`);
     } catch (err) {
       console.error('[CHAT] Failed to save chat to localStorage:', err);
     }
@@ -503,9 +543,13 @@ export default function Chat() {
     if (!window.confirm("Delete this chat and its saved memory? This cannot be undone.")) return;
 
     try {
-      const response = await apiFetch(`/api/chats/${chatId}`, { method: "DELETE" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || "Unable to delete this chat");
+      if (userId && token) {
+        const response = await apiFetch(`/api/chats/${chatId}`, { method: "DELETE" });
+        if (!response.ok && response.status !== 404) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data?.error || "Unable to delete this chat");
+        }
+      }
 
       setChats((previous) => {
         const remaining = previous.filter((chat) => chat.id !== chatId);
@@ -518,13 +562,39 @@ export default function Chat() {
         return [replacement];
       });
 
-      const pending = safeParse<Record<string, unknown>>(window.localStorage.getItem(LS_SUPABASE_CHATS_KEY), {});
+      const pendingKey = getSupabasePendingSyncKey(userId);
+      const pending = safeParse<Record<string, unknown>>(window.localStorage.getItem(pendingKey), {});
       delete pending[chatId];
-      window.localStorage.setItem(LS_SUPABASE_CHATS_KEY, JSON.stringify(pending));
+      window.localStorage.setItem(pendingKey, JSON.stringify(pending));
       toast({ title: "Chat deleted", description: "Its conversation and saved memory were removed." });
     } catch (error) {
       console.error("Chat deletion failed:", error);
       toast({ title: "Could not delete chat", description: "Please try again in a moment.", variant: "destructive" });
+    }
+  };
+
+  const deleteAllChats = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL chats in your account? This will clear your chat history and memory.")) return;
+
+    try {
+      if (userId && token) {
+        await apiFetch(`/api/chats`, { method: "DELETE" });
+      }
+
+      const replacement = { id: newId(), title: "New Conversation", messages: [] };
+      setChats([replacement]);
+      setActiveChatId(replacement.id);
+
+      const pendingKey = getSupabasePendingSyncKey(userId);
+      const storageKey = getChatStorageKey(userId);
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(pendingKey);
+        window.localStorage.removeItem(storageKey);
+      }
+      toast({ title: "All chats deleted", description: "Your chat list and memory were cleared." });
+    } catch (error) {
+      console.error("Failed to delete all chats:", error);
+      toast({ title: "Could not delete all chats", description: "Please try again.", variant: "destructive" });
     }
   };
 
@@ -655,8 +725,9 @@ export default function Chat() {
     // Also sync on beforeunload as backup
     const onUnload = () => {
       // Use fetch with keepalive for reliable delivery with auth headers
+      const pendingKey = getSupabasePendingSyncKey(userId);
       const pendingChats = safeParse<Record<string, Record<string, unknown>>>(
-        window.localStorage.getItem(LS_SUPABASE_CHATS_KEY),
+        window.localStorage.getItem(pendingKey),
         {}
       );
       const chatArray = Object.values(pendingChats);
@@ -731,8 +802,8 @@ export default function Chat() {
             <div className="p-2 space-y-1">
               {chats.map((chat) => (
                 <div key={chat.id} className={cn(
-                  "group relative flex items-center gap-1 rounded-xl border border-transparent transition-colors",
-                  activeChatId === chat.id && !selectMode ? "bg-primary text-primary-foreground shadow-soft" : "hover:bg-muted hover:border-border",
+                  "group relative flex items-center gap-1 rounded-xl border border-transparent transition-colors px-1",
+                  activeChatId === chat.id && !selectMode ? "bg-primary text-primary-foreground shadow-soft" : "hover:bg-muted hover:border-border text-foreground",
                   selectMode && selectedChats.includes(chat.id) && "bg-accent/30 border-accent"
                 )}>
                   <button
@@ -740,30 +811,45 @@ export default function Chat() {
                       if (selectMode) setSelectedChats((prev) => prev.includes(chat.id) ? prev.filter((id) => id !== chat.id) : [...prev, chat.id]);
                       else setActiveChatId(chat.id);
                     }}
-                    className="min-w-0 flex-1 text-left px-3 py-2.5 text-sm flex items-center gap-2"
+                    className="min-w-0 flex-1 text-left px-2 py-2.5 text-sm flex items-center gap-2"
                   >
-                    <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                    <MessageSquare className="h-4 w-4 flex-shrink-0 opacity-80" />
                     <span className="truncate">{chat.title}</span>
                   </button>
                   <button
                     type="button"
-                    onClick={(event) => { event.stopPropagation(); setChatMenuId((current) => current === chat.id ? null : chat.id); }}
-                    className="mr-3 flex h-8 w-5 shrink-0 items-center justify-center bg-transparent text-sm font-bold tracking-[.08em] text-current/70 hover:text-current"
-                    aria-label={`Options for ${chat.title}`}
-                  >•••</button>
-                  {chatMenuId === chat.id && (
-                    <div className="absolute right-2 top-10 z-50 w-36 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-medium">
-                      <button
-                        type="button"
-                        onClick={() => { setChatMenuId(null); void deleteChat(chat.id); }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10"
-                      ><Trash2 className="h-4 w-4" /> Delete chat</button>
-                    </div>
-                  )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void deleteChat(chat.id);
+                    }}
+                    className={cn(
+                      "p-1.5 mr-1 rounded-lg transition-opacity hover:bg-destructive/20 hover:text-destructive shrink-0",
+                      activeChatId === chat.id ? "opacity-90 hover:opacity-100" : "opacity-0 group-hover:opacity-80 hover:!opacity-100"
+                    )}
+                    title="Delete chat"
+                    aria-label={`Delete ${chat.title}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               ))}
             </div>
           </ScrollArea>
+
+          {/* Sidebar Footer with Clear All */}
+          {chats.length > 0 && (
+            <div className="p-3 border-t border-border mt-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={deleteAllChats}
+                className="w-full justify-start text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                Clear all chats
+              </Button>
+            </div>
+          )}
         </aside>
 
         {/* Main */}

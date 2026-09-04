@@ -177,6 +177,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           });
         }
       } finally {
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.removeItem("chat_state_v4_single_image");
+            window.localStorage.removeItem("supabase_chats_pending_sync");
+            window.localStorage.removeItem("profile_page_prefs_v1");
+          } catch {
+            // ignore
+          }
+        }
         persistState(defaultState);
         navigate(redirectTo, { replace: true });
       }
@@ -310,4 +319,3 @@ export const useAuth = () => {
   }
   return ctx;
 };
-

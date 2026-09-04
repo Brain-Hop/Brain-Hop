@@ -39,7 +39,8 @@ import {
 } from "lucide-react";
 
 // where we persist profile + prefs locally for quick restore
-const PROFILE_LS_KEY = "profile_page_prefs_v1";
+const getProfileStorageKey = (uid: string | null) =>
+  uid ? `profile_page_prefs_${uid}` : "profile_page_prefs_guest";
 
 type Theme = "system" | "light" | "dark";
 
@@ -80,43 +81,72 @@ export default function Profile() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ---------- hydrate ----------
-  const cached = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(PROFILE_LS_KEY);
-      return raw ? (JSON.parse(raw) as { profile?: Partial<ProfileForm>; prefs?: Partial<ProfilePrefs> }) : {};
-    } catch {
-      return {};
-    }
-  }, []);
-
   const initialName = useMemo(
     () => user?.name || (user?.email ? user.email.split("@")[0] : ""),
     [user?.name, user?.email]
   );
 
   const [profile, setProfile] = useState<ProfileForm>({
-    name: cached.profile?.name ?? initialName ?? "",
-    email: cached.profile?.email ?? user?.email ?? "",
-    username: cached.profile?.username ?? "",
-    bio: cached.profile?.bio ?? "",
-    role: cached.profile?.role ?? "",
-    company: cached.profile?.company ?? "",
-    website: cached.profile?.website ?? "",
-    location: cached.profile?.location ?? "",
-    avatarDataUrl: cached.profile?.avatarDataUrl ?? null,
+    name: initialName || "",
+    email: user?.email || "",
+    username: "",
+    bio: "",
+    role: "",
+    company: "",
+    website: "",
+    location: "",
+    avatarDataUrl: null,
   });
 
   const [prefs, setPrefs] = useState<ProfilePrefs>({
-    defaultModelId:
-      cached.prefs?.defaultModelId ?? loadSelectedModelId() ?? DEFAULT_MODEL_ID,
-    theme: (cached.prefs?.theme as Theme) ?? "system",
-    language: cached.prefs?.language ?? "en",
-    emailNotifications: cached.prefs?.emailNotifications ?? true,
-    desktopNotifications: cached.prefs?.desktopNotifications ?? false,
-    saveHistory: cached.prefs?.saveHistory ?? true,
-    twoFAEnabled: cached.prefs?.twoFAEnabled ?? false,
+    defaultModelId: loadSelectedModelId() ?? DEFAULT_MODEL_ID,
+    theme: "system",
+    language: "en",
+    emailNotifications: true,
+    desktopNotifications: false,
+    saveHistory: true,
+    twoFAEnabled: false,
   });
+
+  // Hydrate when user changes
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const storageKey = getProfileStorageKey(user.id);
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { profile?: Partial<ProfileForm>; prefs?: Partial<ProfilePrefs> };
+        if (parsed.profile) {
+          setProfile((prev) => ({
+            ...prev,
+            ...parsed.profile,
+            email: parsed.profile.email || user.email || "",
+            name: parsed.profile.name || user.name || prev.name,
+          }));
+        }
+        if (parsed.prefs) {
+          setPrefs((prev) => ({
+            ...prev,
+            ...parsed.prefs,
+          }));
+        }
+      } else {
+        setProfile({
+          name: user.name || (user.email ? user.email.split("@")[0] : ""),
+          email: user.email || "",
+          username: "",
+          bio: "",
+          role: "",
+          company: "",
+          website: "",
+          location: "",
+          avatarDataUrl: null,
+        });
+      }
+    } catch {
+      // ignore parse error
+    }
+  }, [user?.id, user?.email, user?.name]);
 
   // security form (stubbed)
   const [currentPassword, setCurrentPassword] = useState("");
@@ -125,11 +155,13 @@ export default function Profile() {
 
   // keep localStorage in sync for fast restore
   useEffect(() => {
+    if (!user?.id) return;
+    const storageKey = getProfileStorageKey(user.id);
     localStorage.setItem(
-      PROFILE_LS_KEY,
+      storageKey,
       JSON.stringify({ profile, prefs })
     );
-  }, [profile, prefs]);
+  }, [profile, prefs, user?.id]);
 
   // sync the "default model" to your models page selection too
   useEffect(() => {

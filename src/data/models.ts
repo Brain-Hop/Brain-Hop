@@ -12,51 +12,61 @@ export type ModelInfo = {
 };
 
 export const MODELS: ModelInfo[] = [
-  // 1–10
   {
-    id: "openrouter/polaris-alpha",
-    name: "Polaris Alpha  ",
-    description:
-      "Cloaked community model; strong generalist with standout coding, tool use, and instruction following. Prompts/completions logged by provider.",
+    id: "minimax/minimax-m2.7:free",
+    name: "MiniMax: MiniMax M2.7 (Free)",
+    description: "Ultra-fast, high-efficiency free LLM with great conversational and reasoning capabilities.",
+    badge: "Recommended",
+    icon: "zap",
+    features: ["Context: 200K", "Price: Free", "Provider: MiniMax"],
+  },
+  {
+    id: "liquid/lfm-2.5-2.6b:free",
+    name: "LiquidAI: LFM 2.5 (Free)",
+    description: "Ultra-responsive Liquid Neural Network model with high throughput and strong reasoning.",
+    badge: "Fast",
+    icon: "sparkles",
+    features: ["Context: 32K", "Price: Free", "Provider: LiquidAI"],
+  },
+  {
+    id: "inclusionai/ling-3.0-flash-fin:free",
+    name: "Inclusion: Ling 3.0 Flash (Free)",
+    description: "Advanced multilingual model with rapid response times and solid context comprehension.",
     badge: "General",
     icon: "bot",
-    features: ["Context: 256K", "Price:  ", "Provider: OpenRouter"],
+    features: ["Context: 128K", "Price: Free", "Provider: InclusionAI"],
   },
   {
-    id: "nvidia/nemotron-nano-12b-v2-vl:free",
-    name: "NVIDIA: Nemotron Nano 12B 2 VL  ",
-    description:
-      "12B multimodal (video/doc) model; hybrid Transformer-Mamba; OCR, chart reasoning, multi-image docs.",
-    badge: "Multimodal",
-    icon: "sparkles",
-    features: ["Context: 128K", "Price:  ", "Provider: NVIDIA"],
-  },
-  {
-    id: "minimax/minimax-m2:free",
-    name: "MiniMax: MiniMax M2  ",
-    description:
-      "Compact, high-efficiency LLM for end-to-end coding & agentic workflows; 10B active (230B total).",
-    badge: "Agentic",
+    id: "nvidia/nemotron-3.5-lightning:free",
+    name: "NVIDIA: Nemotron 3.5 Lightning (Free)",
+    description: "High-speed NVIDIA accelerated model optimized for chat, summarization, and reasoning.",
+    badge: "Speed",
     icon: "zap",
-    features: ["Context: 197K", "Price:  ", "Provider: MiniMax"],
+    features: ["Context: 128K", "Price: Free", "Provider: NVIDIA"],
   },
   {
-    id: "alibaba/tongyi-deepresearch-30b-a3b:free",
-    name: "Tongyi DeepResearch 30B A3B  ",
-    description:
-      "Agentic LLM optimized for deep information seeking and long-horizon problem solving.",
+    id: "minimax/minimax-m3:free",
+    name: "MiniMax: MiniMax M3 (Free)",
+    description: "Next-gen MiniMax architecture designed for deep context, chat, and agentic workflows.",
+    badge: "Reasoning",
+    icon: "brain",
+    features: ["Context: 200K", "Price: Free", "Provider: MiniMax"],
+  },
+  {
+    id: "google/gemma-4-31b-it:free",
+    name: "Google: Gemma 4 31B (Free)",
+    description: "Google's open weights instruction-tuned model for research and general knowledge.",
     badge: "Research",
     icon: "brain",
-    features: ["Context: 131K", "Price:  ", "Provider: Alibaba"],
+    features: ["Context: 128K", "Price: Free", "Provider: Google"],
   },
   {
-    id: "meituan/longcat-flash-chat:free",
-    name: "Meituan: LongCat Flash Chat  ",
-    description:
-      "MoE (560B total / 27B active) for conversational & agentic tasks; deterministic compute; strong tool use.",
+    id: "z-ai/glm-5.2:free",
+    name: "Z.AI: GLM 5.2 (Free)",
+    description: "Conversational powerhouse with deep bilingual and general capabilities.",
     badge: "MoE",
-    icon: "zap",
-    features: ["Context: 131K", "Price:  ", "Provider: Meituan"],
+    icon: "bot",
+    features: ["Context: 128K", "Price: Free", "Provider: Z.AI"],
   },
   {
     id: "nvidia/nemotron-nano-9b-v2:free",

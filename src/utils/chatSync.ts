@@ -12,7 +12,10 @@ export interface SupabaseChatRecord {
   [key: string]: unknown;
 }
 
-const LS_SUPABASE_CHATS_KEY = "supabase_chats_pending_sync";
+export const getSupabasePendingSyncKey = (userId: string | null) =>
+  userId ? `supabase_chats_pending_sync_${userId}` : "supabase_chats_pending_sync_guest";
+
+const LEGACY_LS_SUPABASE_CHATS_KEY = "supabase_chats_pending_sync";
 
 function safeParse<T>(v: string | null, fallback: T): T {
   try {
@@ -33,18 +36,22 @@ export async function syncChatsToSupabase(
   }
 
   try {
+    const key = getSupabasePendingSyncKey(userId);
     const pendingChats = safeParse<Record<string, SupabaseChatRecord>>(
-      typeof window !== "undefined" ? window.localStorage.getItem(LS_SUPABASE_CHATS_KEY) : null,
+      typeof window !== "undefined" ? window.localStorage.getItem(key) : null,
       {}
     );
 
     const chatArray = Object.values(pendingChats);
     if (chatArray.length === 0) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(LEGACY_LS_SUPABASE_CHATS_KEY);
+      }
       console.log('[CHAT SYNC] No pending chats to sync');
       return true;
     }
 
-    console.log(`[CHAT SYNC] Syncing ${chatArray.length} chats to Supabase...`);
+    console.log(`[CHAT SYNC] Syncing ${chatArray.length} chats to Supabase for user ${userId}...`);
 
     const response = await fetch(`${apiBaseUrl}/api/chats/sync`, {
       method: "POST",
@@ -60,7 +67,8 @@ export async function syncChatsToSupabase(
     if (response.ok) {
       // Clear pending chats after successful sync
       if (typeof window !== "undefined") {
-        window.localStorage.removeItem(LS_SUPABASE_CHATS_KEY);
+        window.localStorage.removeItem(key);
+        window.localStorage.removeItem(LEGACY_LS_SUPABASE_CHATS_KEY);
       }
       console.log('[CHAT SYNC] Successfully synced all chats to Supabase');
       return true;
