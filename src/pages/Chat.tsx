@@ -658,6 +658,44 @@ export default function Chat() {
     }
   };
 
+  const deleteSelectedChats = async () => {
+    if (selectedChats.length === 0) return;
+    if (!window.confirm(`Delete ${selectedChats.length} selected chat(s) and their saved memory? This cannot be undone.`)) return;
+
+    try {
+      for (const chatId of selectedChats) {
+        if (userId && token) {
+          await apiFetch(`/api/chats/${chatId}`, { method: "DELETE" }).catch(() => {});
+        }
+      }
+
+      setChats((previous) => {
+        const remaining = previous.filter((chat) => !selectedChats.includes(chat.id));
+        if (remaining.length > 0) {
+          if (selectedChats.includes(activeChatId)) setActiveChatId(remaining[0].id);
+          return remaining;
+        }
+        const replacement = { id: newId(), title: "New Conversation", messages: [] };
+        setActiveChatId(replacement.id);
+        return [replacement];
+      });
+
+      const pendingKey = getSupabasePendingSyncKey(userId);
+      const pending = safeParse<Record<string, unknown>>(window.localStorage.getItem(pendingKey), {});
+      for (const chatId of selectedChats) {
+        delete pending[chatId];
+      }
+      window.localStorage.setItem(pendingKey, JSON.stringify(pending));
+
+      setSelectedChats([]);
+      setSelectMode(false);
+      toast({ title: "Chats deleted", description: "Selected chats and their saved memory were removed." });
+    } catch (error) {
+      console.error("Batch deletion failed:", error);
+      toast({ title: "Could not delete selected chats", description: "Please try again.", variant: "destructive" });
+    }
+  };
+
   // ===== snippets =====
   const handleSelectionChange = (messageId: string, event: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -796,6 +834,17 @@ export default function Chat() {
                 Connect selected ({selectedChats.length})
               </Button>
             )}
+            {selectMode && selectedChats.length > 0 && (
+              <Button
+                onClick={deleteSelectedChats}
+                variant="destructive"
+                className="w-full rounded-xl"
+                size="sm"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete selected ({selectedChats.length})
+              </Button>
+            )}
           </div>
 
           <ScrollArea className="flex-1">
@@ -823,8 +872,10 @@ export default function Chat() {
                       void deleteChat(chat.id);
                     }}
                     className={cn(
-                      "p-1.5 mr-1 rounded-lg transition-opacity hover:bg-destructive/20 hover:text-destructive shrink-0",
-                      activeChatId === chat.id ? "opacity-90 hover:opacity-100" : "opacity-0 group-hover:opacity-80 hover:!opacity-100"
+                      "p-1.5 mr-1 rounded-lg transition-all shrink-0",
+                      activeChatId === chat.id && !selectMode
+                        ? "text-primary-foreground/80 hover:text-white hover:bg-white/20 opacity-90 hover:opacity-100"
+                        : "text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-70 hover:opacity-100 group-hover:opacity-100"
                     )}
                     title="Delete chat"
                     aria-label={`Delete ${chat.title}`}
@@ -858,18 +909,32 @@ export default function Chat() {
           <div className="p-4 border-b border-border flex items-center gap-4 bg-card/45">
             <div className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Network className="h-4 w-4" /></div>
             <div className="min-w-0"><p className="text-[11px] uppercase tracking-[.14em] text-muted-foreground">Active perspective</p><p className="text-sm font-medium truncate">{activeChat?.title || 'New conversation'}</p></div>
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger className="ml-auto w-64 rounded-xl bg-background/80">
-                <SelectValue placeholder="Choose a model" />
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                {MODELS.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="ml-auto flex items-center gap-2">
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger className="w-56 sm:w-64 rounded-xl bg-background/80">
+                  <SelectValue placeholder="Choose a model" />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {MODELS.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {activeChat && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => void deleteChat(activeChat.id)}
+                  title="Delete this chat"
+                  aria-label="Delete this chat"
+                  className="h-9 w-9 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             <span className="hidden xl:inline text-xs text-muted-foreground">{selectedModelName}</span>
           </div>
 
